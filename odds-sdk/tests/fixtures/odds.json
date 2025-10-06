@@ -1,0 +1,65 @@
+[
+    {
+        "id": "a512a48a58c4329048174217b2cc7ce0",
+        "sport_key": "americanfootball_nfl",
+        "sport_title": "NFL",
+        "commence_time": "2024-01-15T20:00:00Z",
+        "home_team": "Kansas City Chiefs",
+        "away_team": "Buffalo Bills",
+        "bookmakers": [
+            {
+                "key": "draftkings",
+                "title": "DraftKings",
+                "last_update": "2024-01-15T19:30:00Z",
+                "markets": [
+                    {
+                        "key": "h2h",
+                        "last_update": "2024-01-15T19:30:00Z",
+                        "outcomes": [
+                            {
+                                "name": "Kansas City Chiefs",
+                                "price": 1.85
+                            },
+                            {
+                                "name": "Buffalo Bills",
+                                "price": 1.95
+                            }
+                        ]
+                    },
+                    {
+                        "key": "spreads",
+                        "last_update": "2024-01-15T19:30:00Z",
+                        "outcomes": [
+                            {
+                                "name": "Kansas City Chiefs",
+                                "price": 1.90,
+                                "point": -3.5
+                            },
+                            {
+                                "name": "Buffalo Bills",
+                                "price": 1.90,
+                                "point": 3.5
+                            }
+                        ]
+                    },
+                    {
+                        "key": "totals",
+                        "last_update": "2024-01-15T19:30:00Z",
+                        "outcomes": [
+                            {
+                                "name": "Over",
+                                "price": 1.95,
+                                "point": 48.5
+                            },
+                            {
+                                "name": "Under",
+                                "price": 1.85,
+                                "point": 48.5
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+]
