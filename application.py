@@ -1,327 +1,427 @@
-# Streamlit application that calls out to agent
+# Streamlit application for OddsAPI SDK integration
 
 import streamlit as st
-import pandas as pd
-import plotly.graph_objects as go
-import plotly.express as px
-from agent import BettingAgent
-import numpy as np
+import sys
+import os
+from datetime import datetime, timedelta
+
+# Add the odds-sdk to the path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "odds-sdk", "src"))
+
+# Cache configuration
+SPORTS_CACHE_DURATION_MINUTES = 60  # Cache sports for 1 hour
+
+
+def get_sports_with_cache(odds_client, force_refresh=False):
+    """
+    Get sports list with caching. Returns cached data if available and not expired,
+    otherwise fetches from API and caches the result.
+
+    Args:
+        odds_client: The OddsAPIClient instance
+        force_refresh: If True, bypass cache and fetch fresh data
+
+    Returns:
+        List of Sport objects
+    """
+    current_time = datetime.now()
+
+    # Check if we have valid cached data
+    if (
+        not force_refresh
+        and st.session_state.cached_sports is not None
+        and st.session_state.sports_cache_timestamp is not None
+    ):
+        # Check if cache is still valid (not expired)
+        cache_age = current_time - st.session_state.sports_cache_timestamp
+        if cache_age < timedelta(minutes=SPORTS_CACHE_DURATION_MINUTES):
+            return st.session_state.cached_sports
+
+    # Cache is empty or expired, fetch from API
+    sports = odds_client.get_sports(active_only=True)
+
+    # Cache the results
+    st.session_state.cached_sports = sports
+    st.session_state.sports_cache_timestamp = current_time
+
+    return sports
+
 
 # Page configuration
 st.set_page_config(
-    page_title="BetAI - Football Betting Agent",
-    page_icon="⚽",
-    layout="wide"
+    page_title="BetAI - Live Odds Dashboard", page_icon="🤖", layout="wide"
 )
 
 # Initialize session state
-if 'agent' not in st.session_state:
-    st.session_state.agent = BettingAgent(initial_bankroll=1000.0)
-    
-if 'match_results' not in st.session_state:
-    st.session_state.match_results = []
+if "odds_client" not in st.session_state:
+    st.session_state.odds_client = None
+if "selected_sport" not in st.session_state:
+    st.session_state.selected_sport = None
+if "live_odds" not in st.session_state:
+    st.session_state.live_odds = []
+if "selected_region" not in st.session_state:
+    st.session_state.selected_region = None
+if "selected_format" not in st.session_state:
+    st.session_state.selected_format = None
+if "cached_sports" not in st.session_state:
+    st.session_state.cached_sports = None
+if "sports_cache_timestamp" not in st.session_state:
+    st.session_state.sports_cache_timestamp = None
 
 # Title and description
-st.title("⚽ BetAI - Football Betting Agent Dashboard")
-st.markdown("### AI-Powered Sports Betting Analysis with Paper Trading")
+st.title("🤖 BetAI - Live Odds Dashboard")
+st.markdown("### Real-time Sports Betting Odds from Multiple Bookmakers")
+st.markdown("---")
 
 # Sidebar for configuration
 with st.sidebar:
-    st.header("⚙️ Configuration")
-    
-    initial_bankroll = st.number_input(
-        "Initial Bankroll ($)",
-        min_value=100.0,
-        max_value=10000.0,
-        value=1000.0,
-        step=100.0
-    )
-    
-    kelly_fraction = st.slider(
-        "Kelly Fraction",
-        min_value=0.1,
-        max_value=1.0,
-        value=0.25,
-        step=0.05,
-        help="Fraction of Kelly criterion to use (lower = more conservative)"
-    )
-    
-    ev_threshold = st.slider(
-        "EV Threshold (%)",
-        min_value=0.0,
-        max_value=20.0,
-        value=5.0,
-        step=1.0,
-        help="Minimum expected value to recommend a bet"
-    )
-    
-    if st.button("🔄 Reset Bankroll"):
-        st.session_state.agent = BettingAgent(initial_bankroll=initial_bankroll, kelly_fraction=kelly_fraction)
-        st.session_state.match_results = []
-        st.success("Bankroll reset!")
-        st.rerun()
+    st.header("Configuration")
 
-# Main dashboard layout
-col1, col2 = st.columns([2, 1])
+    # API Key input
+    api_key = st.text_input(
+        "Odds API Key",
+        type="password",
+        help="Get your free API key from https://the-odds-api.com/",
+    )
 
-with col1:
-    st.header("📊 Live Match Analysis")
-    
-    # Match input section
-    with st.expander("📥 Enter Match Details", expanded=True):
-        match_col1, match_col2 = st.columns(2)
-        
-        with match_col1:
-            home_team = st.text_input("Home Team", value="Team A")
-            home_advantage = st.slider("Home Advantage", -1.0, 1.0, 0.3, 0.1)
-        
-        with match_col2:
-            away_team = st.text_input("Away Team", value="Team B")
-            recent_form = st.slider("Recent Form", -1.0, 1.0, 0.2, 0.1)
-        
-        odds = st.number_input("Decimal Odds", min_value=1.01, max_value=20.0, value=2.5, step=0.1)
-        
-        if st.button("🔮 Get Prediction", use_container_width=True):
-            match_features = {
-                'home_advantage': home_advantage,
-                'recent_form': recent_form
-            }
-            
-            recommendation = st.session_state.agent.make_recommendation(
-                match_features, 
-                odds, 
-                ev_threshold
+    if api_key and api_key != "your-api-key-here":
+        try:
+            from oddsapi import OddsAPIClient, Region, Market, OddsFormat
+
+            if st.session_state.odds_client is None:
+                st.session_state.odds_client = OddsAPIClient(api_key=api_key)
+                # Clear cache when connecting with new API key
+                st.session_state.cached_sports = None
+                st.session_state.sports_cache_timestamp = None
+                st.success("✅ Connected to Odds API!")
+        except Exception as e:
+            st.error(f"❌ Connection failed: {e}")
+            st.session_state.odds_client = None
+    else:
+        st.info("👆 Enter your API key to get started")
+        st.session_state.odds_client = None
+
+    # Region selection
+    if st.session_state.odds_client:
+        st.subheader("Region")
+        region_options = {
+            "US": Region.US,
+            "UK": Region.UK,
+            "Australia": Region.AU,
+            "Europe": Region.EU,
+        }
+        selected_region = st.selectbox("Select Region", list(region_options.keys()))
+        st.session_state.selected_region = region_options[selected_region]
+
+        # Odds format selection
+        st.subheader("Odds Format")
+        odds_format_options = {
+            "American": OddsFormat.AMERICAN,
+            "Decimal": OddsFormat.DECIMAL,
+        }
+        selected_format = st.selectbox(
+            "Select Format", list(odds_format_options.keys()), index=0
+        )
+        st.session_state.selected_format = odds_format_options[selected_format]
+
+
+# Main content area
+if (
+    st.session_state.odds_client
+    and st.session_state.selected_region
+    and st.session_state.selected_format
+):
+    try:
+        # Get available sports
+        with st.spinner("Loading available sports..."):
+            sports = get_sports_with_cache(st.session_state.odds_client)
+
+        # Sport selection
+        st.markdown("---")
+        st.subheader("Select Sport")
+
+        # Create sport options with better names
+        sport_options = {}
+
+        for sport in sports:
+            if sport.active:
+                # Create a better display name
+                display_name = sport.title
+                if sport.group:
+                    display_name = f"{sport.title} ({sport.group})"
+
+                sport_options[display_name] = sport.key
+
+        # Check if we have any sports loaded
+        if not sport_options:
+            st.warning(
+                "⚠️ No active sports found. Please check your API key and region settings."
             )
-            
-            st.session_state.current_recommendation = recommendation
-            st.session_state.current_match = {
-                'home_team': home_team,
-                'away_team': away_team,
-                'odds': odds
-            }
-    
-    # Display recommendation
-    if 'current_recommendation' in st.session_state:
-        st.subheader("💡 Recommendation")
-        rec = st.session_state.current_recommendation
-        
-        # Action indicator
-        if rec['action'] == 'BET':
-            st.success(f"### ✅ {rec['action']}")
-        else:
-            st.warning(f"### ❌ {rec['action']}")
-        
-        # Metrics display
-        metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
-        
-        with metric_col1:
-            st.metric("Model Probability", f"{rec['model_probability']:.1%}")
-        
-        with metric_col2:
-            st.metric("Implied Odds Prob", f"{rec['implied_probability']:.1%}")
-        
-        with metric_col3:
-            ev_color = "green" if rec['expected_value'] > 0 else "red"
-            st.metric("Expected Value", f"{rec['expected_value']:.2f}%")
-        
-        with metric_col4:
-            st.metric("Confidence", f"{rec['confidence']:.1%}")
-        
-        # Additional details
-        detail_col1, detail_col2 = st.columns(2)
-        
-        with detail_col1:
-            st.info(f"**Recommended Stake:** ${rec['stake']:.2f}")
-        
-        with detail_col2:
-            st.info(f"**Model Used:** {rec['model_used']}")
-        
-        # Probability comparison chart
-        st.subheader("📈 Probability Comparison")
-        
-        fig = go.Figure()
-        fig.add_trace(go.Bar(
-            x=['Model Prediction', 'Implied by Odds'],
-            y=[rec['model_probability'], rec['implied_probability']],
-            marker_color=['#1f77b4', '#ff7f0e'],
-            text=[f"{rec['model_probability']:.1%}", f"{rec['implied_probability']:.1%}"],
-            textposition='auto',
-        ))
-        fig.update_layout(
-            yaxis_title="Probability",
-            yaxis_range=[0, 1],
-            showlegend=False,
-            height=300
-        )
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Simulate bet result
-        st.subheader("🎲 Simulate Bet Result")
-        
-        sim_col1, sim_col2 = st.columns(2)
-        
-        with sim_col1:
-            if st.button("✅ Mark as WON", use_container_width=True):
-                if rec['stake'] > 0:
-                    st.session_state.agent.place_paper_bet(rec['stake'], st.session_state.current_match['odds'], True)
-                    st.session_state.match_results.append({
-                        'home_team': st.session_state.current_match['home_team'],
-                        'away_team': st.session_state.current_match['away_team'],
-                        'stake': rec['stake'],
-                        'odds': st.session_state.current_match['odds'],
-                        'result': 'Won',
-                        'profit': rec['stake'] * (st.session_state.current_match['odds'] - 1)
-                    })
-                    st.success("Bet marked as won!")
-                    st.rerun()
-        
-        with sim_col2:
-            if st.button("❌ Mark as LOST", use_container_width=True):
-                if rec['stake'] > 0:
-                    st.session_state.agent.place_paper_bet(rec['stake'], st.session_state.current_match['odds'], False)
-                    st.session_state.match_results.append({
-                        'home_team': st.session_state.current_match['home_team'],
-                        'away_team': st.session_state.current_match['away_team'],
-                        'stake': rec['stake'],
-                        'odds': st.session_state.current_match['odds'],
-                        'result': 'Lost',
-                        'profit': -rec['stake']
-                    })
-                    st.warning("Bet marked as lost!")
-                    st.rerun()
+            st.stop()
 
-with col2:
-    st.header("💰 Paper Trading Performance")
-    
-    # Current bankroll
-    stats = st.session_state.agent.get_performance_stats()
-    
-    bankroll_change = stats['current_bankroll'] - initial_bankroll
-    bankroll_pct = (bankroll_change / initial_bankroll * 100) if initial_bankroll > 0 else 0
-    
-    st.metric(
-        "Current Bankroll",
-        f"${stats['current_bankroll']:.2f}",
-        f"{bankroll_change:+.2f} ({bankroll_pct:+.1f}%)"
-    )
-    
-    # Performance metrics
-    st.subheader("📈 Statistics")
-    
-    st.metric("Total Bets", stats['total_bets'])
-    st.metric("Win Rate", f"{stats['win_rate']:.1f}%")
-    st.metric("Total Profit", f"${stats['total_profit']:.2f}")
-    st.metric("ROI", f"{stats['roi']:.2f}%")
-    
-    # Quick info
-    with st.expander("ℹ️ How It Works"):
-        st.markdown("""
-        **BetAI** uses machine learning models to predict football match outcomes:
-        
-        1. **Model Selection**: Agent selects from Logistic Regression, Naive Bayes, or Random Forest
-        2. **Probability Prediction**: Models predict win probability based on match features
-        3. **Expected Value**: Calculates EV by comparing model probability to bookmaker odds
-        4. **Kelly Criterion**: Determines optimal stake size based on edge and bankroll
-        5. **Paper Trading**: Simulates betting without real money to track performance
-        
-        **Actions:**
-        - ✅ **BET**: When EV exceeds threshold
-        - ❌ **NO BET**: When edge is insufficient
-        """)
+        # Sort sports alphabetically by display name
+        sorted_sports = sorted(sport_options.keys())
 
-# Bottom section - Full width
-st.header("📊 Performance Dashboard")
+        nfl_index = 0
+        for i, sport in enumerate(sorted_sports):
+            if (
+                "NFL" in sport
+                or "American Football" in sport
+                or "americanfootball_nfl" in sport_options.get(sport, "")
+            ):
+                nfl_index = i
+                break
 
-tab1, tab2 = st.tabs(["💹 Bankroll Curve", "📋 Bet History"])
+        # Create sports selection row with dropdown and refresh button
+        col1, col2 = st.columns([4, 1])
 
-with tab1:
-    if st.session_state.agent.bet_history:
-        # Create bankroll curve
-        bankroll_data = pd.DataFrame(st.session_state.agent.bet_history)
-        bankroll_data['bet_number'] = range(1, len(bankroll_data) + 1)
-        
-        fig = px.line(
-            bankroll_data, 
-            x='bet_number', 
-            y='bankroll',
-            title='Bankroll Evolution Over Time',
-            labels={'bet_number': 'Bet Number', 'bankroll': 'Bankroll ($)'}
-        )
-        fig.add_hline(y=initial_bankroll, line_dash="dash", line_color="gray", 
-                      annotation_text="Initial Bankroll")
-        fig.update_layout(height=400)
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Additional performance charts
-        col1, col2 = st.columns(2)
-        
         with col1:
-            # Profit distribution
-            fig_profit = px.histogram(
-                bankroll_data,
-                x='profit',
-                title='Profit Distribution per Bet',
-                labels={'profit': 'Profit ($)', 'count': 'Frequency'},
-                nbins=20
+            selected_sport_display = st.selectbox(
+                "Choose a sport:",
+                sorted_sports,
+                index=nfl_index,
+                help="Select a sport to view live odds",
+                label_visibility="collapsed",
             )
-            fig_profit.update_layout(height=300)
-            st.plotly_chart(fig_profit, use_container_width=True)
-        
-        with col2:
-            # Win/Loss pie chart
-            results = bankroll_data['won'].value_counts()
-            fig_pie = px.pie(
-                values=results.values,
-                names=['Won' if x else 'Lost' for x in results.index],
-                title='Win/Loss Distribution',
-                color_discrete_map={'Won': '#00CC96', 'Lost': '#EF553B'}
-            )
-            fig_pie.update_layout(height=300)
-            st.plotly_chart(fig_pie, use_container_width=True)
-    else:
-        st.info("📊 No bets placed yet. Start analyzing matches to see your bankroll curve!")
 
-with tab2:
-    if st.session_state.match_results:
-        df = pd.DataFrame(st.session_state.match_results)
-        df['match'] = df['home_team'] + ' vs ' + df['away_team']
-        
-        # Format for display
-        display_df = df[['match', 'stake', 'odds', 'result', 'profit']].copy()
-        display_df['stake'] = display_df['stake'].apply(lambda x: f"${x:.2f}")
-        display_df['odds'] = display_df['odds'].apply(lambda x: f"{x:.2f}")
-        display_df['profit'] = display_df['profit'].apply(lambda x: f"${x:.2f}")
-        display_df.columns = ['Match', 'Stake', 'Odds', 'Result', 'Profit/Loss']
-        
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
-        
-        # Summary statistics
-        st.subheader("📈 Summary Statistics")
-        
-        total_staked = df['stake'].sum()
-        total_profit = df['profit'].sum()
-        avg_odds = df['odds'].mean()
-        
-        sum_col1, sum_col2, sum_col3 = st.columns(3)
-        
-        with sum_col1:
-            st.metric("Total Staked", f"${total_staked:.2f}")
-        
-        with sum_col2:
-            st.metric("Net Profit/Loss", f"${total_profit:.2f}")
-        
-        with sum_col3:
-            st.metric("Avg Odds", f"{avg_odds:.2f}")
-    else:
-        st.info("📋 No bet history yet. Simulate some bets to see your history!")
+        with col2:
+            if st.button("Refresh", help="Refresh live odds", use_container_width=True):
+                if st.session_state.selected_sport:
+                    with st.spinner("Fetching live odds..."):
+                        try:
+                            live_odds = st.session_state.odds_client.get_odds(
+                                sport_key=st.session_state.selected_sport,
+                                regions=[st.session_state.selected_region],
+                                markets=[Market.H2H, Market.SPREADS, Market.TOTALS],
+                                odds_format=st.session_state.selected_format,
+                            )
+                            st.session_state.live_odds = live_odds
+                        except Exception as e:
+                            st.error(f"❌ Failed to fetch odds: {e}")
+                            st.session_state.live_odds = []
+                    st.rerun()
+
+        st.markdown("---")
+
+        # Set the selected sport when dropdown changes
+        if selected_sport_display:
+            new_sport_key = sport_options[selected_sport_display]
+
+            # Check if sport has changed and clear existing odds
+            if st.session_state.selected_sport != new_sport_key:
+                st.session_state.selected_sport = new_sport_key
+                st.session_state.live_odds = []  # Clear existing odds
+                st.rerun()
+
+        # Set the sport key for processing
+        if st.session_state.selected_sport:
+            new_sport_key = st.session_state.selected_sport
+
+            # Auto-fetch odds when sport is selected (if no odds exist)
+            if not st.session_state.live_odds:
+                with st.spinner("Fetching live odds..."):
+                    try:
+                        live_odds = st.session_state.odds_client.get_odds(
+                            sport_key=st.session_state.selected_sport,
+                            regions=[st.session_state.selected_region],
+                            markets=[Market.H2H, Market.SPREADS, Market.TOTALS],
+                            odds_format=st.session_state.selected_format,
+                        )
+                        st.session_state.live_odds = live_odds
+                    except Exception as e:
+                        st.error(f"❌ Failed to fetch odds: {e}")
+                        st.session_state.live_odds = []
+
+        # Display live odds
+        if st.session_state.live_odds:
+            # Get the display name for the selected sport
+            selected_display_name = None
+            for display_name, sport_key in sport_options.items():
+                if sport_key == st.session_state.selected_sport:
+                    selected_display_name = display_name
+                    break
+
+            sport_title = selected_display_name or "Selected Sport"
+            st.header(f"Live {sport_title} Odds")
+
+            # Region and format info with better spacing
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                st.markdown(
+                    f"<div style='text-align: center; margin: 10px 0;'>"
+                    f"<strong>Region:</strong> {selected_region} | <strong>Format:</strong> {selected_format}"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+
+            # Show events
+            for i, event in enumerate(st.session_state.live_odds):
+                with st.expander(
+                    f"🏟️ {event.home_team} vs {event.away_team}", expanded=i < 1
+                ):
+                    # Event info with better alignment
+                    col1, col2, col3 = st.columns([2, 1, 1])
+                    with col1:
+                        st.markdown(
+                            f"**Start Time:** {event.commence_time.strftime('%Y-%m-%d %H:%M UTC')}"
+                        )
+                    with col2:
+                        st.markdown(f"**Sport:** {event.sport_title}")
+                    with col3:
+                        st.markdown(f"**Bookmakers:** {len(event.bookmakers)}")
+
+                    st.markdown("---")
+
+                    # Show odds from each bookmaker
+                    for bookmaker in event.bookmakers:
+                        st.subheader(f"{bookmaker.title}")
+
+                        # Create columns for the three main markets
+                        col1, col2, col3 = st.columns(3)
+
+                        with col1:
+                            st.markdown("### **Head-to-Head (Moneyline)**")
+                            h2h_market = next(
+                                (m for m in bookmaker.markets if m.key == "h2h"), None
+                            )
+                            if h2h_market:
+                                for outcome in h2h_market.outcomes:
+                                    st.write(f"**{outcome.name}:** {outcome.price}")
+                            else:
+                                st.write("No moneyline odds available")
+
+                        with col2:
+                            st.markdown("### **Point Spreads (Handicap)**")
+                            spreads_market = next(
+                                (m for m in bookmaker.markets if m.key == "spreads"),
+                                None,
+                            )
+                            if spreads_market:
+                                for outcome in spreads_market.outcomes:
+                                    point_display = (
+                                        f"{outcome.point:+.1f}"
+                                        if outcome.point
+                                        else "N/A"
+                                    )
+                                    st.write(
+                                        f"**{outcome.name} {point_display}:** {outcome.price}"
+                                    )
+                            else:
+                                st.write("No spread odds available")
+
+                        with col3:
+                            st.markdown("### **Totals (Over/Under)**")
+                            totals_market = next(
+                                (m for m in bookmaker.markets if m.key == "totals"),
+                                None,
+                            )
+                            if totals_market:
+                                for outcome in totals_market.outcomes:
+                                    point_display = (
+                                        f"{outcome.point:.1f}"
+                                        if outcome.point
+                                        else "N/A"
+                                    )
+                                    st.write(
+                                        f"**{outcome.name} {point_display}:** {outcome.price}"
+                                    )
+                            else:
+                                st.write("No totals odds available")
+
+                        st.markdown("---")
+
+                    # Best odds comparison
+                    st.subheader("Best Odds Comparison")
+
+                    # Find best odds for each market
+                    best_odds = {
+                        "h2h": {"odds": 0, "bookmaker": "", "outcome": ""},
+                        "spreads": {
+                            "odds": 0,
+                            "bookmaker": "",
+                            "outcome": "",
+                            "point": 0,
+                        },
+                        "totals": {
+                            "odds": 0,
+                            "bookmaker": "",
+                            "outcome": "",
+                            "point": 0,
+                        },
+                    }
+
+                    for bookmaker in event.bookmakers:
+                        for market in bookmaker.markets:
+                            if market.key in best_odds:
+                                for outcome in market.outcomes:
+                                    if outcome.price > best_odds[market.key]["odds"]:
+                                        best_odds[market.key]["odds"] = outcome.price
+                                        best_odds[market.key]["bookmaker"] = (
+                                            bookmaker.title
+                                        )
+                                        best_odds[market.key]["outcome"] = outcome.name
+                                        if outcome.point is not None:
+                                            best_odds[market.key]["point"] = (
+                                                outcome.point
+                                            )
+
+                    # Display best odds
+                    best_col1, best_col2, best_col3 = st.columns(3)
+
+                    with best_col1:
+                        if best_odds["h2h"]["odds"] > 0:
+                            st.success(
+                                f"**Best Moneyline:** {best_odds['h2h']['outcome']} {best_odds['h2h']['odds']} @ {best_odds['h2h']['bookmaker']}"
+                            )
+
+                    with best_col2:
+                        if best_odds["spreads"]["odds"] > 0:
+                            point_display = f"{best_odds['spreads']['point']:+.1f}"
+                            st.success(
+                                f"**Best Spread:** {best_odds['spreads']['outcome']} {point_display} {best_odds['spreads']['odds']} @ {best_odds['spreads']['bookmaker']}"
+                            )
+
+                    with best_col3:
+                        if best_odds["totals"]["odds"] > 0:
+                            point_display = f"{best_odds['totals']['point']:.1f}"
+                            st.success(
+                                f"**Best Total:** {best_odds['totals']['outcome']} {point_display} {best_odds['totals']['odds']} @ {best_odds['totals']['bookmaker']}"
+                            )
+
+        else:
+            st.info("👆 Click 'Refresh' to fetch current odds for the selected sport")
+
+    except Exception as e:
+        st.error(f"❌ Error loading sports: {e}")
+        st.info("Please check your API key and try again")
+
+elif st.session_state.odds_client:
+    st.info("👆 Please select a region and odds format in the sidebar to view sports")
+else:
+    # Welcome screen
+    st.markdown("""
+
+    ### **Getting Started:**
+    1. Get your free API key from [The Odds API](https://the-odds-api.com/)
+    2. Enter your API key in the sidebar
+    3. Select your preferred region (odds format defaults to American)
+    4. Choose a sport and click "Refresh" to load odds
+    5. View live odds from multiple bookmakers
+
+    ### **Supported Markets:**
+    - **Head-to-Head (H2H)**: Direct win/loss betting
+    - **Spreads**: Handicap betting with point spreads
+    - **Totals**: Over/under betting on total points/goals
+
+    """)
 
 # Footer
 st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: gray;'>"
-    "BetAI - Educational Paper Trading Only | "
-    "Not Real Money Betting | "
-    "© 2025 Groberg, Miller, Velez Ramirez"
+    "BetAI - Live Odds Dashboard | "
+    "Powered by The Odds API | "
+    "(c) 2025 Groberg, Miller, Velez Ramirez"
     "</div>",
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
