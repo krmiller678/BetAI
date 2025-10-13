@@ -4,7 +4,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
-from agent import BettingAgent
+from betai.agents.agent_v1 import BettingAgent
 import numpy as np
 
 # Page configuration
