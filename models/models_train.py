@@ -1,7 +1,13 @@
+"""
+models_train.py
+Train 3 models (Logistic Regression, Naive Bayes, Random Forest)
+to predict home team win probability using pre-game stats only.
+"""
+
 import os
+from pathlib import Path
 import joblib
 import pandas as pd
-from pathlib import Path
 from sklearn.model_selection import train_test_split
 from sklearn.feature_selection import SelectKBest, f_classif
 from sklearn.linear_model import LogisticRegression
@@ -9,105 +15,124 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 
-import nflreadpy as nfl  # uses Polars internally per docs :contentReference[oaicite:0]{index=0}
+import nflreadpy as nfl
 
-# Where to save your trained models
+
+# ============================================================
+# Setup
+# ============================================================
+
 MODEL_DIR = Path(__file__).resolve().parent / "trained_models"
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
-# ========== 1. Load & Preprocess Data ==========
 
-def load_and_merge_data(seasons = [2022, 2023]):
+# ============================================================
+# Data Loading and Feature Engineering
+# ============================================================
+
+def load_game_level_data(seasons=[2024, 2025]):
     """
-    Loads the play-by-play and team stats from nflreadpy, merges them,
-    filters clean plays, returns a DataFrame.
+    Load team stats and schedules, merge into one game-level dataset.
+    Each row = 1 game, with home and away team stats joined.
+    Only uses pre-game stats.
     """
-    # Load play-by-play
-    pbp = nfl.load_pbp(seasons)  # returns Polars DF; convert to pandas
-    pbp = pbp.to_pandas()
-    
-    # Load team stats (you’ll merge offense & defense)  
-    team_stats = nfl.load_team_stats(seasons=True).to_pandas()
+    print("Loading game-level data...")
 
-    # Filter to regular-season plays (if season_type exists)
-    if "season_type" in pbp.columns:
-        pbp = pbp[pbp["season_type"] == "REG"]
-    
-    # Drop plays with missing essential info
-    essential_cols = ["yardline_100", "down", "ydstogo", "posteam", "defteam", "total_home_score", "total_away_score"]
-    pbp = pbp.dropna(subset=essential_cols)
+    # Load schedules and team stats
+    schedules = nfl.load_schedules(seasons=seasons).to_pandas()
+    stats = nfl.load_team_stats(seasons=seasons).to_pandas()
 
-    # Create some basic features
-    # score differential from offense perspective
-    pbp["score_differential"] = pbp["total_home_score"] - pbp["total_away_score"]
-    # Make a feature is_home for posteam
-    pbp["is_home"] = (pbp["posteam"] == pbp["home_team"]).astype(int)
+    # Keep only relevant columns from team stats
+    keep_cols = [
+        "season", "week", "team",
+        "passing_epa", "rushing_epa",
+        "passing_yards", "rushing_yards",
+        "def_sacks", "def_interceptions", "def_fumbles_forced"
+    ]
+    stats = stats[keep_cols]
 
-    # Merge team stats for offense (posteam) and defense (defteam)
-    # Columns that should NOT be renamed
-    key_cols = ["season", "week", "team"]
-    
-    off = team_stats.rename(
-        columns=lambda c: c + "_off" if c not in key_cols else c
+    # Rename for home and away before merging
+    home_stats = stats.rename(columns=lambda c: c if c in ["season", "week", "team"] else c + "_home")
+    away_stats = stats.rename(columns=lambda c: c if c in ["season", "week", "team"] else c + "_away")
+
+    # Merge home stats
+    df = schedules.merge(
+        home_stats,
+        left_on=["season", "week", "home_team"],
+        right_on=["season", "week", "team"],
+        how="left"
     )
-    defn = team_stats.rename(
-        columns=lambda c: c + "_def" if c not in key_cols else c
+
+    # Merge away stats
+    df = df.merge(
+        away_stats,
+        left_on=["season", "week", "away_team"],
+        right_on=["season", "week", "team"],
+        how="left"
     )
-    
-    # Then merge correctly
-    pbp = pbp.merge(off, left_on=["season","week","posteam"],
-                         right_on=["season","week","team"], how="left")
-    pbp = pbp.merge(defn, left_on=["season","week","defteam"],
-                         right_on=["season","week","team"], how="left")
-    print(off.columns.tolist())
 
-    # Engineer differential stats
-    # Example: passing_epa_off - passing_epa_def
-    for stat in ["passing_epa", "rushing_epa"]:
-        off_col = stat + "_off"
-        def_col = stat + "_def"
-        if off_col in pbp.columns and def_col in pbp.columns:
-            pbp[f"{stat}_diff"] = pbp[off_col] - pbp[def_col]
+    # Target variable: home win
+    df["home_win"] = (df["home_score"] > df["away_score"]).astype(int)
 
-    # Label: did the posteam win?
-    pbp["win_label"] = (pbp["posteam_score_post"] > pbp["defteam_score_post"]).astype(int)
+    # Compute differentials
+    def safe_diff(df, home_col, away_col, new_col):
+        if home_col in df.columns and away_col in df.columns:
+            df[new_col] = df[home_col] - df[away_col]
+        else:
+            df[new_col] = 0  # default to 0 if missing
 
-    return pbp
+    diffs = {
+        "passing_epa_diff": ("passing_epa_home", "passing_epa_away"),
+        "rushing_epa_diff": ("rushing_epa_home", "rushing_epa_away"),
+        "passing_yards_diff": ("passing_yards_home", "passing_yards_away"),
+        "rushing_yards_diff": ("rushing_yards_home", "rushing_yards_away"),
+        "sacks_diff": ("def_sacks_home", "def_sacks_away"),
+        "interceptions_diff": ("def_interceptions_home", "def_interceptions_away"),
+        "fumbles_forced_diff": ("def_fumbles_forced_home", "def_fumbles_forced_away"),
+    }
 
-def build_feature_matrix(pbp: pd.DataFrame, feature_cols: list):
-    """
-    Given the merged pbp DataFrame and a list of feature columns,
-    returns X (features) and y (labels), dropping any rows with NaNs in features.
-    """
-    df = pbp.copy()
-    # Only keep rows where all feature_cols are present
-    df = df.dropna(subset=feature_cols + ["win_label"])
-    X = df[feature_cols].reset_index(drop=True)
-    y = df["win_label"].reset_index(drop=True)
-    return X, y
+    for new_col, (home_col, away_col) in diffs.items():
+        safe_diff(df, home_col, away_col, new_col)
 
-# ========== 2. Feature Selection ==========
+    # Feature list for modeling
+    features = list(diffs.keys()) + ["week"]
 
-def select_k_best(X: pd.DataFrame, y: pd.Series, k: int = 10):
-    """Select top k features using univariate F-test."""
+    # Drop rows with missing values
+    df = df.dropna(subset=features + ["home_win"]).reset_index(drop=True)
+
+    print(f"Loaded {len(df)} games with {len(features)} features.")
+    return df, features
+
+
+
+# ============================================================
+# Feature Selection
+# ============================================================
+
+def select_k_best(X, y, k=6):
+    """Select the top K features based on univariate F-test."""
     selector = SelectKBest(score_func=f_classif, k=min(k, X.shape[1]))
-    X_sel = selector.fit_transform(X, y)
+    X_new = selector.fit_transform(X, y)
     selected = X.columns[selector.get_support()]
     print("Selected features:", list(selected))
-    # Return DataFrame with those features
-    return pd.DataFrame(X_sel, columns=selected), list(selected)
+    return pd.DataFrame(X_new, columns=selected), list(selected)
 
-# ========== 3. Train & Save ==========
 
-def train_and_save(model, model_name: str, X_train, y_train, X_test, y_test):
-    print(f"Training {model_name} …")
+# ============================================================
+# Training Utilities
+# ============================================================
+
+def train_and_save(model, model_name, X_train, y_train, X_test, y_test):
+    print(f"Training {model_name} ...")
     model.fit(X_train, y_train)
     preds = model.predict(X_test)
     acc = accuracy_score(y_test, preds)
-    path = MODEL_DIR / f"{model_name}.pkl"
-    joblib.dump(model, path)
-    print(f"Saved {model_name} to {path}, accuracy = {acc:.4f}")
+
+    model_path = MODEL_DIR / f"{model_name}.pkl"
+    joblib.dump(model, model_path)
+    print(f"Saved {model_name} to {model_path}, accuracy = {acc:.4f}")
     return acc
+
 
 def save_feature_list(feature_names, model_name):
     path = MODEL_DIR / f"{model_name}_features.txt"
@@ -116,41 +141,56 @@ def save_feature_list(feature_names, model_name):
             f.write(f"{feat}\n")
     print(f"Saved {model_name} feature list to {path}")
 
+
+# ============================================================
+# Main Pipeline
+# ============================================================
+
 def main():
-    # 1. Load & merge
-    print("Loading and merging data...")
-    pbp = load_and_merge_data(seasons=[2022, 2023])
+    # 1. Load and preprocess data
+    df, candidate_features = load_game_level_data(seasons=[2024, 2025])
 
-    # 2. Build feature matrix
-    # Define your candidate features (filter out ones you cannot use live)
-    candidate_features = [
-        "quarter_seconds_remaining", "game_seconds_remaining",
-        "yardline_100", "down", "ydstogo", "goal_to_go",
-        "score_differential", "is_home",
-        "passing_epa_diff", "rushing_epa_diff"
-    ]
-    X, y = build_feature_matrix(pbp, candidate_features)
+    X = df[candidate_features]
+    y = df["home_win"]
 
-    # 3. Feature selection
-    X_sel, selected_feats = select_k_best(X, y, k=8)
+    # 2. Feature selection
+    X_sel, selected_feats = select_k_best(X, y, k=min(6, len(candidate_features)))
 
-    # Save feature list for later inference
-    save_feature_list(selected_feats, "logistic_regression")
-    save_feature_list(selected_feats, "naive_bayes")
-    save_feature_list(selected_feats, "random_forest")
+    # Save selected features
+    for name in ["logistic_regression", "naive_bayes", "random_forest"]:
+        save_feature_list(selected_feats, name)
 
-    # 4. Split train/test
-    X_train, X_test, y_train, y_test = train_test_split(X_sel, y, test_size=0.2, random_state=42)
+    # 3. Split train/test
+    X_train, X_test, y_train, y_test = train_test_split(
+        X_sel, y, test_size=0.2, random_state=42
+    )
 
-    # 5. Train models
+    # 4. Train models
     accs = {}
-    accs["logistic_regression"] = train_and_save(LogisticRegression(max_iter=500), "logistic_regression", X_train, y_train, X_test, y_test)
-    accs["naive_bayes"] = train_and_save(GaussianNB(), "naive_bayes", X_train, y_train, X_test, y_test)
-    accs["random_forest"] = train_and_save(RandomForestClassifier(n_estimators=100, random_state=42), "random_forest", X_train, y_train, X_test, y_test)
+    accs["logistic_regression"] = train_and_save(
+        LogisticRegression(max_iter=500), "logistic_regression",
+        X_train, y_train, X_test, y_test
+    )
 
+    accs["naive_bayes"] = train_and_save(
+        GaussianNB(), "naive_bayes",
+        X_train, y_train, X_test, y_test
+    )
+
+    accs["random_forest"] = train_and_save(
+        RandomForestClassifier(n_estimators=100, random_state=42),
+        "random_forest", X_train, y_train, X_test, y_test
+    )
+
+    # 5. Summary
     print("\n=== Summary ===")
     for m, a in accs.items():
         print(f"{m}: {a:.4f}")
+
+
+# ============================================================
+# Entry Point
+# ============================================================
 
 if __name__ == "__main__":
     main()
