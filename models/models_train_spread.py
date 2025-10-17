@@ -18,7 +18,6 @@ covers if they win by 4+; a home underdog (+3) covers if they lose by <= 2 or wi
 
 from pathlib import Path
 import joblib
-import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.feature_selection import SelectKBest, f_classif
 from sklearn.linear_model import LogisticRegression
@@ -151,8 +150,10 @@ def load_game_level_data_spread(seasons=[2023, 2024, 2025]):
     for new_col, (h, a) in diffs.items():
         safe_diff(df, h, a, new_col)
 
-    # Initial feature set (keep it small to learn iteratively)
-    features = list(diffs.keys()) + ["week"]
+    # Initial feature set (now includes the market spread line)
+    # Sign convention: negative = home favored, positive = home underdog.
+    # Including this conditions predictions on the actual posted line.
+    features = list(diffs.keys()) + ["week", "spread_line"]
 
     # Drop rows with missing feature values just for our first pass
     df = df.dropna(subset=features + ["home_cover"]).reset_index(drop=True)
@@ -179,13 +180,22 @@ def load_game_level_data_spread(seasons=[2023, 2024, 2025]):
     return df, features, meta_cols
 
 
-def select_k_best(X, y, k=8):
+def select_k_best(X, y, k=8, force_include: list[str] | None = None):
     """Select the top K features based on univariate F-test."""
     selector = SelectKBest(score_func=f_classif, k=min(k, X.shape[1]))
-    X_new = selector.fit_transform(X, y)
-    selected = X.columns[selector.get_support()]
-    print("Selected features:", list(selected))
-    return pd.DataFrame(X_new, columns=selected), list(selected)
+    selector.fit(X, y)
+    selected = list(X.columns[selector.get_support()])
+
+    # Ensure certain features are always included (e.g., spread_line)
+    force_include = force_include or []
+    for col in force_include:
+        if col not in selected and col in X.columns:
+            selected.append(col)
+
+    # Reduce X to selected columns (maintain order: selected first)
+    X_selected = X[selected]
+    print("Selected features:", selected)
+    return X_selected, selected
 
 
 def train_and_save(model, model_name, X_train, y_train, X_test, y_test):
@@ -217,7 +227,7 @@ def main():
 
     # 2) Feature selection
     X_sel, selected_feats = select_k_best(
-        X, y, k=min(8, len(candidate_features))
+        X, y, k=min(8, len(candidate_features)), force_include=["spread_line"]
     )
 
     # Save selected features for each model
