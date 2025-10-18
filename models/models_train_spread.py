@@ -18,7 +18,6 @@ covers if they win by 4+; a home underdog (+3) covers if they lose by <= 2 or wi
 
 from pathlib import Path
 import joblib
-from sklearn.model_selection import train_test_split
 from sklearn.feature_selection import SelectKBest, f_classif
 from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import GaussianNB
@@ -78,13 +77,46 @@ def load_game_level_data_spread(seasons=[2023, 2024, 2025]):
         "fg_pct",
         "penalty_yards",
     ]
-    stats = stats[keep_cols]
+    stats = stats[keep_cols].copy()
+
+    # --- Lag and smooth team stats (leakage-safe) ---
+    # For each team and season, shift metrics by 1 week so we only use information
+    # available BEFORE the current game. Also compute a rolling-3 average on the
+    # shifted series to smooth early-season noise.
+    stats = stats.sort_values(["team", "season", "week"]).reset_index(
+        drop=True
+    )
+    group = stats.groupby(["team", "season"], sort=False, group_keys=False)
+
+    metric_cols = [
+        "passing_epa",
+        "rushing_epa",
+        "passing_yards",
+        "rushing_yards",
+        "def_sacks",
+        "def_interceptions",
+        "def_fumbles_forced",
+        "fg_pct",
+        "penalty_yards",
+    ]
+
+    for col in metric_cols:
+        shifted = group[col].shift(1)
+        stats[f"{col}_lag1"] = shifted
+        # rolling mean of the last up-to-3 prior weeks (excludes current week)
+        stats[f"{col}_roll3"] = shifted.groupby(
+            [stats["team"], stats["season"]]
+        ).transform(lambda s: s.rolling(3, min_periods=1).mean())
 
     # Prepare home/away copies for merge
-    home_stats = stats.rename(
+    # Use the smoothed prior-week (roll3) features for modeling
+    roll3_cols = [f"{c}_roll3" for c in metric_cols]
+    stats_roll3 = stats[["season", "week", "team"] + roll3_cols].copy()
+
+    home_stats = stats_roll3.rename(
         columns=lambda c: c if c in ["season", "week", "team"] else c + "_home"
     )
-    away_stats = stats.rename(
+    away_stats = stats_roll3.rename(
         columns=lambda c: c if c in ["season", "week", "team"] else c + "_away"
     )
 
@@ -130,21 +162,36 @@ def load_game_level_data_spread(seasons=[2023, 2024, 2025]):
             df_in[new_col] = 0
 
     diffs = {
-        "passing_epa_diff": ("passing_epa_home", "passing_epa_away"),
-        "rushing_epa_diff": ("rushing_epa_home", "rushing_epa_away"),
-        "passing_yards_diff": ("passing_yards_home", "passing_yards_away"),
-        "rushing_yards_diff": ("rushing_yards_home", "rushing_yards_away"),
-        "sacks_diff": ("def_sacks_home", "def_sacks_away"),
+        "passing_epa_diff": (
+            "passing_epa_roll3_home",
+            "passing_epa_roll3_away",
+        ),
+        "rushing_epa_diff": (
+            "rushing_epa_roll3_home",
+            "rushing_epa_roll3_away",
+        ),
+        "passing_yards_diff": (
+            "passing_yards_roll3_home",
+            "passing_yards_roll3_away",
+        ),
+        "rushing_yards_diff": (
+            "rushing_yards_roll3_home",
+            "rushing_yards_roll3_away",
+        ),
+        "sacks_diff": ("def_sacks_roll3_home", "def_sacks_roll3_away"),
         "interceptions_diff": (
-            "def_interceptions_home",
-            "def_interceptions_away",
+            "def_interceptions_roll3_home",
+            "def_interceptions_roll3_away",
         ),
         "fumbles_forced_diff": (
-            "def_fumbles_forced_home",
-            "def_fumbles_forced_away",
+            "def_fumbles_forced_roll3_home",
+            "def_fumbles_forced_roll3_away",
         ),
-        "fg_pct_diff": ("fg_pct_home", "fg_pct_away"),
-        "penalty_yards_diff": ("penalty_yards_home", "penalty_yards_away"),
+        "fg_pct_diff": ("fg_pct_roll3_home", "fg_pct_roll3_away"),
+        "penalty_yards_diff": (
+            "penalty_yards_roll3_home",
+            "penalty_yards_roll3_away",
+        ),
     }
 
     for new_col, (h, a) in diffs.items():
@@ -218,50 +265,72 @@ def save_feature_list(feature_names, model_name):
 
 
 def main():
-    # 1) Load and preprocess data
+    # 1) Define season-based split
+    train_seasons = [2023, 2024]
+    test_seasons = [2025]
+    all_seasons = sorted(set(train_seasons + test_seasons))
+
+    # 2) Load and preprocess data for all seasons
     df, candidate_features, _ = load_game_level_data_spread(
-        seasons=[2023, 2024, 2025]
+        seasons=all_seasons
     )
     X = df[candidate_features]
     y = df["home_cover"]
 
-    # 2) Feature selection
-    X_sel, selected_feats = select_k_best(
-        X, y, k=min(8, len(candidate_features)), force_include=["spread_line"]
+    # 3) Create season-based partitions
+    train_mask = df["season"].isin(train_seasons)
+    test_mask = df["season"].isin(test_seasons)
+    X_train_full, y_train = X.loc[train_mask], y.loc[train_mask]
+    X_test_full, y_test = X.loc[test_mask], y.loc[test_mask]
+
+    print(
+        f"Season split: train {train_seasons} -> {len(X_train_full)} rows, test {test_seasons} -> {len(X_test_full)} rows"
     )
+    if len(X_train_full) == 0 or len(X_test_full) == 0:
+        raise RuntimeError(
+            "Train/test split by season produced empty partition(s). Adjust seasons."
+        )
+
+    # 4) Fit feature selection on TRAIN ONLY, then apply to TEST
+    X_train_sel, selected_feats = select_k_best(
+        X_train_full,
+        y_train,
+        k=min(8, len(candidate_features)),
+        force_include=["spread_line"],
+    )
+    # Align test to selected columns (missing columns shouldn't happen but guard anyway)
+    for col in selected_feats:
+        if col not in X_test_full.columns:
+            X_test_full[col] = 0
+    X_test_sel = X_test_full[selected_feats]
 
     # Save selected features for each model
     for name in ["lr_spread", "nb_spread", "rf_spread"]:
         save_feature_list(selected_feats, name)
 
-    # 3) Split train/test
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_sel, y, test_size=0.2, random_state=42
-    )
-
-    # 4) Train models
+    # 5) Train models
     accs = {}
     accs["lr_spread"] = train_and_save(
         LogisticRegression(max_iter=500),
         "lr_spread",
-        X_train,
+        X_train_sel,
         y_train,
-        X_test,
+        X_test_sel,
         y_test,
     )
     accs["nb_spread"] = train_and_save(
-        GaussianNB(), "nb_spread", X_train, y_train, X_test, y_test
+        GaussianNB(), "nb_spread", X_train_sel, y_train, X_test_sel, y_test
     )
     accs["rf_spread"] = train_and_save(
         RandomForestClassifier(n_estimators=100, random_state=42),
         "rf_spread",
-        X_train,
+        X_train_sel,
         y_train,
-        X_test,
+        X_test_sel,
         y_test,
     )
 
-    # 5) Summary
+    # 6) Summary
     print("\n=== Summary ===")
     for m, a in accs.items():
         print(f"{m}: {a:.4f}")
