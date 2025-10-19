@@ -4,8 +4,6 @@ models_train_spread.py
 Train 3 spread models (Logistic Regression, Naive Bayes, Random Forest)
 to predict home cover probability (ATS) using pre-game stats only.
 
-Mirrors models_train_moneyline.py structure for familiarity.
-
 Target definition (home ATS):
     home_margin = home_score - away_score
     spread_line: home team's point spread (negative if favored, positive if underdog)
@@ -39,13 +37,12 @@ MODEL_DIR.mkdir(parents=True, exist_ok=True)
 # ============================================================
 
 
-def load_game_level_data_spread(seasons=[2023, 2024, 2025]):
+def load_game_level_data_spread(seasons=[2022, 2023, 2024, 2025]):
     """Build a per-game dataset with features and ATS target (home_cover).
 
     Returns:
-        df: pandas DataFrame with one row per game, feature columns, and 'home_cover'
-        features: list of feature column names
-        meta_cols: minimal identifiers helpful for inspection (game_id, teams, week)
+    df: pandas DataFrame with one row per game, feature columns, and 'home_cover'
+    features: list of feature column names
     """
     print("Loading schedules and team stats…")
 
@@ -62,7 +59,7 @@ def load_game_level_data_spread(seasons=[2023, 2024, 2025]):
     except Exception:
         pass
 
-    # Team stats columns to keep (same as moneyline script for now)
+    # Team stats columns to keep
     keep_cols = [
         "season",
         "week",
@@ -77,11 +74,18 @@ def load_game_level_data_spread(seasons=[2023, 2024, 2025]):
         "fg_pct",
         "penalty_yards",
     ]
-    stats = stats[keep_cols].copy()
+    # Use only columns that exist to support older seasons gracefully
+    available_keep = [c for c in keep_cols if c in stats.columns]
+    missing_keep = [c for c in keep_cols if c not in stats.columns]
+    if missing_keep:
+        print(
+            f"Warning: Missing team stat columns for seasons {seasons}: {missing_keep}. Proceeding with available columns only."
+        )
+    stats = stats[available_keep].copy()
 
-    # --- Lag and smooth team stats (leakage-safe) ---
+    # --- Lag and smooth team stats ---
     # For each team and season, shift metrics by 1 week so we only use information
-    # available BEFORE the current game. Also compute a rolling-3 average on the
+    # available before the current game. Also compute a rolling-3 average on the
     # shifted series to smooth early-season noise.
     stats = stats.sort_values(["team", "season", "week"]).reset_index(
         drop=True
@@ -99,8 +103,9 @@ def load_game_level_data_spread(seasons=[2023, 2024, 2025]):
         "fg_pct",
         "penalty_yards",
     ]
+    metric_cols_avail = [c for c in metric_cols if c in stats.columns]
 
-    for col in metric_cols:
+    for col in metric_cols_avail:
         shifted = group[col].shift(1)
         stats[f"{col}_lag1"] = shifted
         # rolling mean of the last up-to-3 prior weeks (excludes current week)
@@ -110,7 +115,7 @@ def load_game_level_data_spread(seasons=[2023, 2024, 2025]):
 
     # Prepare home/away copies for merge
     # Use the smoothed prior-week (roll3) features for modeling
-    roll3_cols = [f"{c}_roll3" for c in metric_cols]
+    roll3_cols = [f"{c}_roll3" for c in metric_cols_avail]
     stats_roll3 = stats[["season", "week", "team"] + roll3_cols].copy()
 
     home_stats = stats_roll3.rename(
@@ -161,7 +166,8 @@ def load_game_level_data_spread(seasons=[2023, 2024, 2025]):
         else:
             df_in[new_col] = 0
 
-    diffs = {
+    # Build diffs only for features that are available
+    possible_diffs = {
         "passing_epa_diff": (
             "passing_epa_roll3_home",
             "passing_epa_roll3_away",
@@ -193,6 +199,11 @@ def load_game_level_data_spread(seasons=[2023, 2024, 2025]):
             "penalty_yards_roll3_away",
         ),
     }
+    diffs = {
+        k: v
+        for k, v in possible_diffs.items()
+        if v[0] in df.columns and v[1] in df.columns
+    }
 
     for new_col, (h, a) in diffs.items():
         safe_diff(df, h, a, new_col)
@@ -205,26 +216,13 @@ def load_game_level_data_spread(seasons=[2023, 2024, 2025]):
     # Drop rows with missing feature values just for our first pass
     df = df.dropna(subset=features + ["home_cover"]).reset_index(drop=True)
 
-    meta_cols = [
-        c
-        for c in [
-            "game_id",
-            "season",
-            "week",
-            "home_team",
-            "away_team",
-            "spread_line",
-        ]
-        if c in df.columns
-    ]
-
     print(f"Built ATS dataset: {len(df)} games, features={len(features)}")
     print(
         "Class balance (home_cover):",
         df["home_cover"].value_counts(normalize=True).to_dict(),
     )
 
-    return df, features, meta_cols
+    return df, features
 
 
 def select_k_best(X, y, k=8, force_include: list[str] | None = None):
@@ -266,14 +264,12 @@ def save_feature_list(feature_names, model_name):
 
 def main():
     # 1) Define season-based split
-    train_seasons = [2023, 2024]
+    train_seasons = [2022, 2023, 2024]
     test_seasons = [2025]
     all_seasons = sorted(set(train_seasons + test_seasons))
 
     # 2) Load and preprocess data for all seasons
-    df, candidate_features, _ = load_game_level_data_spread(
-        seasons=all_seasons
-    )
+    df, candidate_features = load_game_level_data_spread(seasons=all_seasons)
     X = df[candidate_features]
     y = df["home_cover"]
 
