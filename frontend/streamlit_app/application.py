@@ -1,6 +1,11 @@
 # Streamlit application for OddsAPI SDK integration
 
 import streamlit as st
+import pandas as pd
+import plotly.graph_objects as go
+import plotly.express as px
+from betai.agents.agent_v1 import BettingAgent
+import numpy as np
 import sys
 import os
 from datetime import datetime, timedelta
