@@ -4,7 +4,7 @@ HTTP client with rate limiting and retry logic for The Odds API
 
 import requests
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 from threading import Lock
 from .errors import (
     OddsAPIError,
@@ -47,19 +47,22 @@ class SimpleRateLimiter:
 
 
 class HTTPClient:
-    """HTTP client with rate limiting and retry logic"""
+    """HTTP client with rate limiting, retry logic, and caching"""
 
     def __init__(
         self,
         api_key: str,
         base_url: str = "https://api.the-odds-api.com/v4",
         requests_per_minute: int = 30,
+        cache_ttl: int = 10,
     ):
         self.api_key = api_key
         self.base_url = base_url
         self.session = requests.Session()
         self.session.timeout = 10
         self.rate_limiter = SimpleRateLimiter(requests_per_minute)
+        self.cache_ttl = cache_ttl
+        self._cache: Dict[str, Tuple[float, Any]] = {}
 
     def _handle_response(self, response: requests.Response) -> Dict[str, Any]:
         """Handle HTTP response and raise appropriate exceptions"""
@@ -84,16 +87,33 @@ class HTTPClient:
     def get(
         self, endpoint: str, params: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Make a GET request with rate limiting"""
+        """Make a GET request with rate limiting and caching"""
+        if params is None:
+            params = {}
+
+        # Build cache key
+        cache_key = f"{endpoint}|{tuple(sorted(params.items()))}"
+        current_time = time.time()
+
+        # Check cache first
+        if cache_key in self._cache:
+            cached_time, cached_data = self._cache[cache_key]
+            if current_time - cached_time < self.cache_ttl:
+                return cached_data
+
+        # Cache miss or expired, make request
         self.rate_limiter.wait()
 
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
-        if params is None:
-            params = {}
         params["apiKey"] = self.api_key
 
         response = self.session.get(url, params=params)
-        return self._handle_response(response)
+        data = self._handle_response(response)
+
+        # Store in cache
+        self._cache[cache_key] = (current_time, data)
+
+        return data
 
     def get_with_retry(
         self,
@@ -102,6 +122,19 @@ class HTTPClient:
         max_retries: int = 3,
     ) -> Dict[str, Any]:
         """Make a GET request with retry logic for transient failures"""
+        if params is None:
+            params = {}
+
+        # Check cache first (same logic as get method)
+        cache_key = f"{endpoint}|{tuple(sorted(params.items()))}"
+        current_time = time.time()
+
+        if cache_key in self._cache:
+            cached_time, cached_data = self._cache[cache_key]
+            if current_time - cached_time < self.cache_ttl:
+                return cached_data
+
+        # Cache miss or expired, proceed with retry logic
         last_exception = None
 
         for attempt in range(max_retries):

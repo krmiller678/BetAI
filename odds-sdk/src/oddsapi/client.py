@@ -2,7 +2,7 @@
 Main client for The Odds API
 """
 
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 from .http import HTTPClient
 from .types import (
@@ -27,6 +27,7 @@ class OddsAPIClient:
         api_key: str,
         base_url: str = "https://api.the-odds-api.com/v4",
         requests_per_minute: int = 30,
+        cache_ttl: int = 10,
     ):
         """
         Initialize the Odds API client
@@ -35,8 +36,9 @@ class OddsAPIClient:
             api_key: Your Odds API key
             base_url: Base URL for the API (default: https://api.the-odds-api.com/v4)
             requests_per_minute: Rate limit for requests (default: 30 - conservative)
+            cache_ttl: Cache time-to-live in seconds (default: 10)
         """
-        self.http = HTTPClient(api_key, base_url, requests_per_minute)
+        self.http = HTTPClient(api_key, base_url, requests_per_minute, cache_ttl)
 
     def get_sports(
         self, active_only: bool = True, use_retry: bool = True
@@ -234,3 +236,158 @@ class OddsAPIClient:
             away_team=data["away_team"],
             bookmakers=bookmakers,
         )
+
+    def normalize_events(
+        self, raw_events: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """
+        Convert provider JSON into a neutral shape used across the app.
+
+        Output schema (list of games):
+        [
+          {
+            "game_id": str,
+            "commence_time": str,     # ISO timestamp
+            "home": str,
+            "away": str,
+            "offers": [               # list of priced sides across markets/books
+              {
+                "bookmaker": str,
+                "market": "moneyline" | "spread" | "total",
+                "side": str,          # e.g. "DET ML", "DET -3.5", "Over 46.5"
+                "decimal_odds": float,
+                "context": { ... }    # minimal info the agent/coordinator may need
+              },
+              ...
+            ]
+          },
+          ...
+        ]
+        """
+        games: List[Dict[str, Any]] = []
+
+        for ev in raw_events or []:
+            game = {
+                "game_id": ev.get("id"),
+                "commence_time": ev.get("commence_time"),
+                "home": ev.get("home_team"),
+                "away": ev.get("away_team"),
+                "offers": [],
+            }
+
+            # Walk all bookmakers and markets to collect offers
+            for bm in ev.get("bookmakers", []):
+                book_title = bm.get("title") or bm.get("key") or "Unknown"
+                for mk in bm.get("markets", []):
+                    provider_key = mk.get("key")  # 'h2h' | 'spreads' | 'totals' | ...
+                    internal_market = self._map_market_key(provider_key)
+                    if not internal_market:
+                        # Ignore any market types we don't support yet.
+                        continue
+
+                    # Each 'outcomes' entry is a priced side of this market.
+                    for out in mk.get("outcomes", []):
+                        # Build a friendly 'side' label and minimal context.
+                        side_label = self._build_side_label(out, internal_market)
+                        context = self._build_context(out, internal_market)
+
+                        offer = {
+                            "bookmaker": book_title,
+                            "market": internal_market,
+                            "side": side_label,
+                            "decimal_odds": float(out.get("price", 0)),
+                            "context": context,
+                        }
+                        game["offers"].append(offer)
+
+            games.append(game)
+
+        return games
+
+    def normalize_scores(
+        self, raw_scores: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """
+        Convert provider scores JSON into a neutral shape.
+
+        Output schema (list of games):
+        [
+          {
+            "game_id": str,
+            "commence_time": str,
+            "home": str,
+            "away": str,
+            "completed": bool,
+            "scores": {
+              "home": int,
+              "away": int
+            }
+          },
+          ...
+        ]
+        """
+        games: List[Dict[str, Any]] = []
+
+        for score in raw_scores or []:
+            game = {
+                "game_id": score.get("id"),
+                "commence_time": score.get("commence_time"),
+                "home": score.get("home_team"),
+                "away": score.get("away_team"),
+                "completed": score.get("completed", False),
+                "scores": {
+                    "home": score.get("scores", [{}])[0].get("score", 0)
+                    if score.get("scores")
+                    else 0,
+                    "away": score.get("scores", [{}])[1].get("score", 0)
+                    if len(score.get("scores", [])) > 1
+                    else 0,
+                },
+            }
+            games.append(game)
+
+        return games
+
+    def _map_market_key(self, provider_key: str) -> Optional[str]:
+        """
+        Map provider market keys to our internal three lanes.
+          provider 'h2h'    -> 'moneyline'
+          provider 'spreads'-> 'spread'
+          provider 'totals' -> 'total'
+        Unknown keys return None (ignored).
+        """
+        if provider_key == "h2h":
+            return "moneyline"
+        if provider_key == "spreads":
+            return "spread"
+        if provider_key == "totals":
+            return "total"
+        return None
+
+    def _build_side_label(self, outcome: Dict[str, Any], market: str) -> str:
+        """Build a friendly side label for display."""
+        name = outcome.get("name", "")
+        point = outcome.get("point", "")
+
+        if market == "moneyline":
+            return f"{name} ML"
+        elif market == "spread":
+            return f"{name} {point}"
+        elif market == "total":
+            return f"{name} {point}"
+        else:
+            return name
+
+    def _build_context(self, outcome: Dict[str, Any], market: str) -> Dict[str, Any]:
+        """Build minimal context for the agent/coordinator."""
+        context = {
+            "outcome_name": outcome.get("name", ""),
+            "point": outcome.get("point"),
+        }
+
+        if market == "spread":
+            context["spread"] = outcome.get("point")
+        elif market == "total":
+            context["total"] = outcome.get("point")
+
+        return context

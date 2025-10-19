@@ -29,6 +29,20 @@ from .errors import (
 __version__ = "0.1.0"
 __author__ = "BetAI Team"
 
+
+# Create convenience functions for normalization
+def normalize_events(raw_events):
+    """Convenience function to normalize events using a default client"""
+    client = OddsAPIClient(api_key="dummy")  # Will be overridden by actual client
+    return client.normalize_events(raw_events)
+
+
+def normalize_scores(raw_scores):
+    """Convenience function to normalize scores using a default client"""
+    client = OddsAPIClient(api_key="dummy")  # Will be overridden by actual client
+    return client.normalize_scores(raw_scores)
+
+
 __all__ = [
     "OddsAPIClient",
     "Region",
@@ -46,4 +60,6 @@ __all__ = [
     "RateLimitError",
     "ServerError",
     "ClientError",
+    "normalize_events",
+    "normalize_scores",
 ]

@@ -10,8 +10,10 @@ import sys
 import os
 from datetime import datetime, timedelta
 
-# Add the odds-sdk to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "odds-sdk", "src"))
+# Add the odds-sdk to the path (absolute path from project root)
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+odds_sdk_path = os.path.join(project_root, "odds-sdk", "src")
+sys.path.insert(0, odds_sdk_path)
 
 # Cache configuration
 SPORTS_CACHE_DURATION_MINUTES = 60  # Cache sports for 1 hour
