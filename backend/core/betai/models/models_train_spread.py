@@ -28,7 +28,11 @@ import nflreadpy as nfl
 # Setup
 # ============================================================
 
-MODEL_DIR = Path(__file__).resolve().parent / "trained_models"
+MODEL_DIR = (
+    Path(__file__).resolve().parent.parent.parent.parent
+    / "trained_models"
+    / "spread"
+)
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
 

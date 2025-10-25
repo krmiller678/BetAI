@@ -1,9 +1,29 @@
-class MoneylineLR:
-    """Very simple placeholder; replace with real sklearn model later."""
-    feature_list = ["seconds_left","score_diff","is_home","pregame_elo_diff","has_possession"]
-    def predict_proba(self, df) -> float:
-        base = 0.5
-        base += 0.04 * float(df["is_home"].iloc[0])
-        base += 0.05 * float(df["has_possession"].iloc[0])
-        base += 0.02 * (float(df["score_diff"].iloc[0]) / 3.0)
-        return max(0.01, min(0.99, base))
+# logistic regression model
+import joblib
+import pandas as pd
+from pathlib import Path
+
+MODEL_DIR = Path(__file__).resolve().parent / "trained_models"
+MODEL_PATH = MODEL_DIR / "logistic_regression.pkl"
+FEATURES_PATH = MODEL_DIR / "logistic_regression_features.txt"
+
+class LogisticRegressionModel:
+    def __init__(self):
+        self.model = joblib.load(MODEL_PATH)
+        with open(FEATURES_PATH, "r") as f:
+            self.feature_list = [line.strip() for line in f if line.strip()]
+
+    def _prepare_input(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.copy()
+        for col in self.feature_list:
+            if col not in df.columns:
+                df[col] = 0
+        return df[self.feature_list]
+
+    def predict_proba(self, df: pd.DataFrame):
+        X = self._prepare_input(df)
+        return self.model.predict_proba(X)[:, 1]
+
+    def predict(self, df: pd.DataFrame):
+        X = self._prepare_input(df)
+        return self.model.predict(X)
