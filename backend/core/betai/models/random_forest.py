@@ -3,9 +3,12 @@ import joblib
 import pandas as pd
 from pathlib import Path
 
-MODEL_DIR = Path(__file__).resolve().parent / "trained_models"
+MODEL_DIR = (
+    Path(__file__).resolve().parent.parent.parent.parent / "trained_models"
+)
 MODEL_PATH = MODEL_DIR / "random_forest.pkl"
 FEATURES_PATH = MODEL_DIR / "random_forest_features.txt"
+
 
 class RandomForestModel:
     def __init__(self):

@@ -17,6 +17,7 @@ from typing import Any, Dict, Literal
 # Import the coordinator(s) we currently support.
 # You can add SpreadCoordinator / TotalCoordinator later the same way.
 from ..coordinators.moneyline import MoneylineCoordinator
+from ..coordinators.spread import SpreadCoordinator
 
 
 # ------------------------------------------------------------
@@ -25,19 +26,19 @@ from ..coordinators.moneyline import MoneylineCoordinator
 # ------------------------------------------------------------
 @dataclass
 class BetRecord:
-    id: str                         # unique bet id
-    ts: float                       # timestamp
+    id: str  # unique bet id
+    ts: float  # timestamp
     market: Literal["moneyline", "spread", "total"]
-    side: str                       # e.g., "DET ML", "DET -3.5", "Over 45.5"
-    model_used: str                 # which model playbook was used
-    decimal_odds: float             # price we used for the EV math
-    p_model: float                  # model probability (0..1)
-    p_implied: float                # implied probability from the odds (naive)
-    ev: float                       # expected value of the bet (unit stake)
-    stake: float                    # dollars to stake (paper trade)
-    context: Dict[str, Any]         # raw inputs we used (for debugging/trace)
+    side: str  # e.g., "DET ML", "DET -3.5", "Over 45.5"
+    model_used: str  # which model playbook was used
+    decimal_odds: float  # price we used for the EV math
+    p_model: float  # model probability (0..1)
+    p_implied: float  # implied probability from the odds (naive)
+    ev: float  # expected value of the bet (unit stake)
+    stake: float  # dollars to stake (paper trade)
+    context: Dict[str, Any]  # raw inputs we used (for debugging/trace)
     result: Literal["open", "win", "loss"] = "open"
-    pnl: float = 0.0                # profit/loss when settled
+    pnl: float = 0.0  # profit/loss when settled
     bankroll_after: float | None = None  # bankroll after settlement
 
 
@@ -53,15 +54,21 @@ class BettingAgent:
     def __init__(self, starting_bankroll: float = 1000.0):
         # Bankroll and policy can come from env (easy to tune later without code changes)
         self.bankroll = float(starting_bankroll)
-        self.kelly_fraction = float(os.getenv("KELLY_FRACTION", 0.25))  # 25% Kelly by default
-        self.max_stake_pct = float(os.getenv("MAX_STAKE_PCT", 0.10))    # hard cap per bet (10%)
-        self.default_ev_threshold = float(os.getenv("EV_THRESHOLD", 0.02))  # need +2% EV to fire by default
+        self.kelly_fraction = float(
+            os.getenv("KELLY_FRACTION", 0.25)
+        )  # 25% Kelly by default
+        self.max_stake_pct = float(
+            os.getenv("MAX_STAKE_PCT", 0.10)
+        )  # hard cap per bet (10%)
+        self.default_ev_threshold = float(
+            os.getenv("EV_THRESHOLD", 0.02)
+        )  # need +2% EV to fire by default
 
         # Coordinators = "Offense/Defense/Special Teams".
         # Start with Moneyline only; add others as you build them.
         self.coordinators = {
             "moneyline": MoneylineCoordinator(),
-            # "spread": SpreadCoordinator(),
+            "spread": SpreadCoordinator(),
             # "total": TotalCoordinator(),
         }
 
@@ -112,8 +119,8 @@ class BettingAgent:
         b = dec - 1.0
         # Kelly fraction f* = (bp - q) / b where q = 1 - p
         raw_k = ((b * p) - (1.0 - p)) / b if b > 0 else 0.0
-        raw_k = max(0.0, raw_k)                # never negative stake
-        f = raw_k * self.kelly_fraction        # use a fraction of full Kelly
+        raw_k = max(0.0, raw_k)  # never negative stake
+        f = raw_k * self.kelly_fraction  # use a fraction of full Kelly
         # dollar stake capped by bankroll and a hard percentage limit
         stake = self.bankroll * f
         cap = self.bankroll * self.max_stake_pct
@@ -149,16 +156,24 @@ class BettingAgent:
 
         # 2) Ask the coordinator to run the right playbook (model)
         if market not in self.coordinators:
-            raise ValueError(f"No coordinator registered for market '{market}'")
+            raise ValueError(
+                f"No coordinator registered for market '{market}'"
+            )
 
         coord = self.coordinators[market]
-        coord_out = coord.recommend(context)  # must return {"p_model": float, "model_name": str}
+        coord_out = coord.recommend(
+            context
+        )  # must return {"p_model": float, "model_name": str}
         p_model = float(coord_out["p_model"])
         model_name = str(coord_out["model_name"])
 
         # 3) EV and decision
         ev = self.expected_value(p_model, dec)
-        threshold = self.default_ev_threshold if ev_threshold is None else float(ev_threshold)
+        threshold = (
+            self.default_ev_threshold
+            if ev_threshold is None
+            else float(ev_threshold)
+        )
         decision = "BET" if ev >= threshold else "NO BET"
 
         # 4) Sizing (Kelly with caps)
@@ -186,7 +201,9 @@ class BettingAgent:
         out["bankroll_now"] = self.bankroll  # current bankroll before placing
         return out
 
-    def record_result(self, bet_id: str, outcome: Literal["win", "loss"]) -> Dict[str, Any]:
+    def record_result(
+        self, bet_id: str, outcome: Literal["win", "loss"]
+    ) -> Dict[str, Any]:
         """
         Settle an existing bet:
           - Win: PnL = stake * (decimal_odds - 1)

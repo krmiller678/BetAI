@@ -21,7 +21,7 @@ from pathlib import Path
 import pandas as pd
 
 # Import the simple logistic regression model (can be swapped for a real one later)
-from ..models.logistic_regression import MoneylineLR
+from ..models.logistic_regression import LogisticRegressionModel as MoneylineLR
 
 # Define the path to the registry folder where our feature lists or configs might live
 REGISTRY_DIR = Path(__file__).resolve().parents[2] / "betai" / "registry"
@@ -42,6 +42,7 @@ FEATURES_FILE = REGISTRY_DIR / "moneyline_lr_features.txt"
 # ------------------------------------------------------------
 class MoneylineCoordinator:
     """Handles the process of generating a model-based probability for moneyline bets."""
+
     def __init__(self):
         # Create an instance of our logistic regression model
         # (This could later load a trained sklearn model instead.)
@@ -61,7 +62,11 @@ class MoneylineCoordinator:
         # 2) Optional file override (only if the file actually contains features)
         try:
             lines = FEATURES_FILE.read_text().splitlines()
-            file_features = [ln.strip() for ln in lines if ln.strip() and not ln.startswith("#")]
+            file_features = [
+                ln.strip()
+                for ln in lines
+                if ln.strip() and not ln.startswith("#")
+            ]
             if file_features:  # only override if non-empty
                 self.feature_list = file_features
         except FileNotFoundError:
@@ -71,11 +76,11 @@ class MoneylineCoordinator:
         # 3) Final fallback (guarantee columns exist)
         if not self.feature_list:
             self.feature_list = [
-                "seconds_left",       # How much time remains in the game
-                "score_diff",         # Current score difference (positive = team is winning)
-                "is_home",            # Whether the team is playing at home
-                "pregame_elo_diff",   # Pre-game Elo rating difference
-                "has_possession",     # Whether the team currently has possession
+                "seconds_left",  # How much time remains in the game
+                "score_diff",  # Current score difference (positive = team is winning)
+                "is_home",  # Whether the team is playing at home
+                "pregame_elo_diff",  # Pre-game Elo rating difference
+                "has_possession",  # Whether the team currently has possession
             ]
 
     # --------------------------------------------------------
@@ -125,6 +130,6 @@ class MoneylineCoordinator:
 
         # Step 3: Return a clean, structured response for the Agent
         return {
-            "p_model": p,                # The probability from the model (0–1)
+            "p_model": p,  # The probability from the model (0–1)
             "model_name": "ml_lr_stub",  # Name of the model used (for logging/display)
         }

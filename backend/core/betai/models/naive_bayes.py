@@ -3,9 +3,12 @@ import joblib
 import pandas as pd
 from pathlib import Path
 
-MODEL_DIR = Path(__file__).resolve().parent / "trained_models"
+MODEL_DIR = (
+    Path(__file__).resolve().parent.parent.parent.parent / "trained_models"
+)
 MODEL_PATH = MODEL_DIR / "naive_bayes.pkl"
 FEATURES_PATH = MODEL_DIR / "naive_bayes_features.txt"
+
 
 class NaiveBayesModel:
     def __init__(self):
