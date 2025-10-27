@@ -7,9 +7,19 @@ Stats are pulled live via nflreadpy (no CSV required).
 Note on sign: spread_line is from the HOME team's perspective (negative = home favored).
 """
 
+import sys
+from pathlib import Path
 import pandas as pd
 import nflreadpy as nfl
-from models import LRSpread, NBSpread, RFSpread
+
+# When running this example from the repository root, ensure the package
+# entrypoint `backend/core` is on sys.path so we can import the betai package.
+ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT / "backend" / "core"))
+
+from betai.models.logistic_regression_spread import LRSpread  # noqa: E402
+from betai.models.naive_bayes_spread import NBSpread  # noqa: E402
+from betai.models.random_forest_spread import RFSpread  # noqa: E402
 
 
 # ============================================================
