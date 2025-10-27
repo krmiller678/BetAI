@@ -30,10 +30,11 @@ import pandas as pd
 from datetime import datetime
 import nflreadpy as nfl
 
-# Import the trained spread models
-from ..models.logistic_regression import LogisticRegressionModel as LRSpread
-from ..models.naive_bayes import NaiveBayesModel as NBSpread
-from ..models.random_forest import RandomForestModel as RFSpread
+# Import the trained spread-specific models (these load the spread-target
+# trained artifacts and the matching feature lists).
+from ..models.logistic_regression_spread import LRSpread
+from ..models.naive_bayes_spread import NBSpread
+from ..models.random_forest_spread import RFSpread
 
 # Define the path to the registry folder where our feature lists or configs might live
 REGISTRY_DIR = Path(__file__).resolve().parents[2] / "betai" / "registry"

@@ -2,7 +2,10 @@ import joblib
 import pandas as pd
 from pathlib import Path
 
-MODEL_DIR = Path(__file__).resolve().parent / "trained_models"
+# Trained artifacts live in `backend/trained_models/spread` (not inside the
+# package folder). Resolve that directory relative to this file by walking
+# up to the repository `backend` folder and into `trained_models/spread`.
+MODEL_DIR = Path(__file__).resolve().parents[3] / "trained_models" / "spread"
 MODEL_PATH = MODEL_DIR / "nb_spread.pkl"
 FEATURES_PATH = MODEL_DIR / "nb_spread_features.txt"
 
