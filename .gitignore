@@ -208,3 +208,4 @@ __marimo__/
 
 # Models
 models/trained_models/
+backend/core/betai/models/trained_models/
