@@ -18,7 +18,11 @@ class NBMoneyLine:
         for col in self.feature_list:
             if col not in df.columns:
                 df[col] = 0
-        return df[self.feature_list]
+        X = df[self.feature_list]
+    
+        # Fill any NaNs with 0 (or the column mean if you prefer)
+        X = X.fillna(0)
+        return X
 
     def predict_proba(self, df: pd.DataFrame):
         X = self._prepare_input(df)
