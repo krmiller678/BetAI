@@ -1,8 +1,9 @@
 import pandas as pd
 import nflreadpy as nfl
-from models import LRMoneyLine
-from models import NBMoneyLine
-from models import RFMoneyLine
+from .logistic_regression_moneyline import LRMoneyLine
+from .naive_bayes_moneyline import NBMoneyLine
+from .random_forest_moneyline import RFMoneyLine
+from .abbreviations import nfl_team_abbr
 
 class Moneyline:
     """Using API from moneyline_ensemble.py"""
@@ -11,7 +12,7 @@ class Moneyline:
     # Feature Builder
     # ============================================================
 
-    def build_matchup_features(home_team: str, away_team: str, week: int, season: int) -> pd.DataFrame:
+    def build_matchup_features(self, home_team: str, away_team: str, week: int, season: int) -> pd.DataFrame:
         """
         Construct a single-row dataframe of home-minus-away pregame stats
         pulled live from NFL API using nflreadpy.
@@ -51,15 +52,24 @@ class Moneyline:
     # Example Run
     # ============================================================
 
-    def predict_proba(self, df) -> float:
+    def predict_proba(self, context) -> float:
         season = 2025
-        week = 6 # make this the most recent week that just occurred, need to add error handling
-                 # for the event that the stats are not completely up to date
-        home_team = "CIN"
-        away_team = "PIT"
+        home_team = nfl_team_abbr[context.get("home_team")]
+        away_team = nfl_team_abbr[context.get("away_team")]
+        for i in range(10, 0, -1):
+            try:
+                week = i
+                # Build features directly from NFL API
+                features = self.build_matchup_features(home_team, away_team, week, season)
+                print(f"Data pulled up through week {i}")
+                break
+            except Exception as e:
+                print(f"Tried week {i}, data not yet available")
 
-        # Build features directly from NFL API
-        features = self.build_matchup_features(home_team, away_team, week, season)
+        pd.set_option('display.max_rows', None)
+        pd.set_option('display.max_columns', None)
+        pd.set_option('display.width', None)
+        print(features)
 
         # Load models
         rf = RFMoneyLine()
@@ -80,4 +90,19 @@ class Moneyline:
         print(f"Logistic Regression: {lr_prob:.3f}")
 
         ensemble_prob = (rf_prob + nb_prob + lr_prob) / 3
+
+        print(f"Ensemble Average:    {ensemble_prob:.3f}\n")
+
+        print(f"\n=== MoneyLine Recommendations ===")
+        if ensemble_prob >= 0.5:
+            moneyline_home = -1*(ensemble_prob/(1-ensemble_prob))*100
+            print(f"Bet on {home_team} if MoneyLine is closer to 0 than {moneyline_home:.0f}")
+            moneyline_away = ((1-(1-ensemble_prob))/(1-ensemble_prob))*100
+            print(f"Bet on {away_team} if MoneyLine is greater than {moneyline_away:.0f}\n")
+        else:
+            moneyline_home = ((1-ensemble_prob)/ensemble_prob)*100
+            print(f"Bet on {home_team} if MoneyLine is greater than {moneyline_home:.0f}")
+            moneyline_away = -1*((1-ensemble_prob)/(1-(1-ensemble_prob)))*100
+            print(f"Bet on {away_team} if MoneyLine is closer to 0 than {moneyline_away:.0f}\n")
+
         return ensemble_prob
