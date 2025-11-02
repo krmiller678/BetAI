@@ -1,5 +1,5 @@
 """
-@file        app_v2.py
+@file        app.py
 @brief       BetAI Streamlit UI — main router and shell (modular views)
 @details
   - Initializes Streamlit page and session state (via lib/session_state.py)
@@ -13,27 +13,38 @@
 # Imports
 # ============================================================
 
-from __future__ import annotations                  # Enables postponed type hint evaluation for cleaner forward declarations
+# Enable postponed evaluation of annotations (cleaner forward refs)
+from __future__ import annotations
+
+# Standard library imports
 import os                                           # Access environment variables (API keys, config)
 import re                                           # Used to sanitize Streamlit widget keys
 import time                                         # Provides timestamps for odds fetch and refresh logic
-from typing import Any                              # Generic typing for helper functions
+from datetime import date, datetime, timezone       # Date handling for slate selection + filtering
+from typing import Any, Callable, Dict, List        # Typing for clarity
+
+# Third-party imports
 import streamlit as st                              # Core Streamlit library for UI rendering
 from streamlit_autorefresh import st_autorefresh    # Provides periodic auto-rerun capability
 
-# Import odds provider wrapper and event normalizer
+# Internal libs — Odds API (normalized) + session state
 from lib.api import fetch_and_normalize_events      # Fetches odds from The Odds API and normalizes data
-
-# Import centralized session state manager
 from lib import session_state as ss                 # Handles all st.session_state initialization and accessors
 
-# Import modular view renderers
-from views.sidebar import render_sidebar                    # Sidebar (provider + agent controls)
-from views.live_board import render_live_board              # Live Board tab (live events + odds)
-from views.recommendations import render_recommendations    # Recommendations tab (EV-based suggestions)
-from views.open_bets import render_open_bets                # Open Bets tab (active simulated bets)
-from views.history import render_history                    # History tab (performance tracking)
-from views.paper_trading import render_paper_trading        # Paper trading tab
+# Internal views — modular renderers
+from views.sidebar import render_sidebar                                # Sidebar (provider + agent controls)
+from views.live_board import render_live_board                          # Live Board tab (live events + odds)
+from views.recommendations import render_recommendations                # Recommendations tab (EV-based suggestions)
+from views.open_bets import render_open_bets                            # Open Bets tab (active simulated bets)
+from views.history import render_history                                # History tab (performance tracking)
+from views.paper_trading import render_paper_trading                    # Paper trading tab
+from views.scoreboard import render_scoreboard, render_game_details     # ESPN scoreboard + details
+
+# Internal ESPN integration — scoreboard normalization
+from betai.integrations.pbp_api import fetch_scoreboard, normalize_scoreboard
+
+# Internal API linker — connects ESPN event_id ↔ OddsAPI game_id by team names
+from lib.api_linker import build_api_link_map
 
 # ============================================================
 # Helper Function: skey
@@ -57,6 +68,70 @@ def skey(*parts: Any) -> str:
 
     # Return the sanitized version
     return safe_key
+
+# ============================================================
+# Helper: ESPN 'YYYYMMDD' formatter
+# ============================================================
+
+def _yyyymmdd(d: date) -> str:
+    """
+    @brief Convert a date to ESPN 'YYYYMMDD' string (e.g., 20251029).
+    @param d  Python date object.
+    @return ESPN date string in YYYYMMDD format.
+    """
+    # Format incoming date into ESPN-compatible YYYYMMDD
+    return d.strftime("%Y%m%d")
+
+# ============================================================
+# Helper: Same-calendar-day test for OddsAPI commence_time
+# ============================================================
+
+def _same_calendar_day(local_iso: str | None, target: date) -> bool:
+    """
+    @brief Check if an ISO timestamp falls on the target local calendar date.
+    @details
+      - Interprets the ISO (with or without 'Z') into local time.
+      - Compares only .date() component against target date.
+    @param local_iso  ISO 8601 timestamp string from OddsAPI (may end with 'Z').
+    @param target     The selected slate date (local).
+    @return True if the commence_time lands on target date locally; else False.
+    """
+    # Early-out when timestamp missing
+    if not local_iso:
+        return False
+
+    try:
+        # Normalize 'Z' to explicit UTC offset so fromisoformat can parse it
+        iso = local_iso.replace("Z", "+00:00")
+        # Parse the ISO string into a datetime
+        dt = datetime.fromisoformat(iso)
+        # If naive, assume UTC then convert to local time
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        local_dt = dt.astimezone()  # Convert to local system timezone
+        # Compare only the calendar day component
+        return local_dt.date() == target
+    except Exception:
+        # Fail-safe (do not include when parsing fails)
+        return False
+
+
+# ============================================================
+# Helper: Filter OddsAPI events to the selected slate date
+# ============================================================
+
+def _filter_events_by_date(events: List[Dict[str, Any]] | None, target: date) -> List[Dict[str, Any]]:
+    """
+    @brief Select only events whose commence_time falls on the target local date.
+    @param events  List of normalized OddsAPI events (may be None/empty).
+    @param target  The selected slate date (local).
+    @return Filtered list of events for the chosen date.
+    """
+    # Guard against None; always return a list
+    if not events:
+        return []
+    # Keep only those whose commence_time matches the target calendar day
+    return [ev for ev in events if _same_calendar_day(ev.get("commence_time"), target)]
 
 
 # ============================================================
@@ -94,6 +169,14 @@ markets     = sidebar_cfg["markets"]            # Market types (e.g., h2h, sprea
 refresh_s   = sidebar_cfg["refresh_s"]          # Auto-refresh interval in seconds (0 disables)
 ev_threshold = sidebar_cfg["ev_threshold"]      # Minimum EV for recommendations to appear
 
+# Add a Slate Date picker (keeps ESPN and OddsAPI aligned to the same calendar day)
+# - Stored in session_state so other tabs/components can reuse
+slate_date = st.sidebar.date_input(
+    label="Slate date",
+    value=st.session_state.get("slate_date", date.today()),
+    help="Pick the calendar day to display. ESPN will fetch this date; Odds will be filtered to this date."
+)
+st.session_state["slate_date"] = slate_date
 
 # ============================================================
 # Fetch Button and Timestamp Display
@@ -162,25 +245,69 @@ if (refresh_s > 0):
 # ============================================================
 
 # Create five tabs: Live Board, Paper Trading, Recommendations, Open Bets, and History
-tab_live, tab_pt, tab_reco, tab_open, tab_hist = st.tabs([
-    "Live Board", "Paper Trading", "Recommendations", "Open Bets", "History"
+tab_scores, tab_live, tab_pt, tab_reco, tab_open, tab_hist = st.tabs([
+    "Scoreboard", "Live Odds", "Paper Trading", "Recommendations", "Open Bets", "History"
 ])
 
+
 # ------------------------------------------------------------
-# Live Board Tab
+# Scoreboard Tab (ESPN-backed list + details, linked to Odds)
 # ------------------------------------------------------------
-with tab_live:
-    # Render the Live Board (events, logos, odds, evaluate/place actions)
-    render_live_board(
-        events=st.session_state.events,     # normalized events
-        agent=agent,                        # BettingAgent instance
-        ev_threshold=ev_threshold,          # EV gate for recs
-        skey=skey,                          # widget key helper
-        sport_key=sport_key,                # Sport type pass through from sidebar
+with tab_scores:
+    # Convert selected date into ESPN format
+    espn_dates = _yyyymmdd(st.session_state["slate_date"])
+
+    # Fetch raw scoreboard for that date from ESPN (network or provider cache)
+    raw_sb = fetch_scoreboard(dates=espn_dates)
+
+    # Normalize to uniform game dicts consumed by views.scoreboard
+    games = normalize_scoreboard(raw_sb) or []
+
+    # Filter OddsAPI events to the same local calendar day (may be empty)
+    events_same_day = _filter_events_by_date(st.session_state.events, st.session_state["slate_date"])
+
+    # Build the dictionary connecting ESPN event IDs ↔ OddsAPI game IDs (by full team names)
+    # - This allows downstream UI (e.g., details pane) to pull odds for the selected ESPN event.
+    espn_to_odds_map: Dict[str, str] = build_api_link_map(
+        espn_games=games,
+        odds_events=events_same_day,
+    )
+
+    # Store in session_state so any view can use it later
+    st.session_state["espn_to_odds"] = espn_to_odds_map
+
+    # Small caption to make provider overlap visible to the user
+    st.caption(
+        f"Slate: {st.session_state['slate_date'].strftime('%a %b %d, %Y')}  •  "
+        f"ESPN games: {len(games)}  •  Odds games: {len(events_same_day)}  •  Linked: {len(espn_to_odds_map)}"
+    )
+
+    # Render the scoreboard strip (radio list) and get the selected event id
+    selected_eid = render_scoreboard(
+        games=games,                 # ESPN normalized games (for this date)
+        odds_events=events_same_day, # Optional: same-day Odds events for best-odds overlay
+        skey=skey,                   # Widget key helper
     )
 
 # ------------------------------------------------------------
-# Paper Trading Tab
+# Live Odds Tab (OddsAPI-backed market cards + actions)
+# ------------------------------------------------------------
+with tab_live:
+    # Filter OddsAPI events to the same local calendar day as the scoreboard
+    events_same_day = _filter_events_by_date(st.session_state.events, st.session_state["slate_date"])
+
+    # Render the Live Board (logos, odds, evaluate/place actions)
+    render_live_board(
+        events=events_same_day,        # Only the chosen slate date
+        agent=agent,                   # BettingAgent instance
+        ev_threshold=ev_threshold,     # EV gate for recs
+        skey=skey,                     # Widget key helper
+        sport_key=sport_key,           # Sport type pass-through from sidebar
+    )
+
+
+# ------------------------------------------------------------
+# Paper Trading Tab (place + manage paper bets)
 # ------------------------------------------------------------
 with tab_pt:
     render_paper_trading(
@@ -193,7 +320,7 @@ with tab_pt:
     )
 
 # ------------------------------------------------------------
-# Recommendations Tab
+# Recommendations Tab (EV suggestions based on latest odds)
 # ------------------------------------------------------------
 with tab_reco:
     # Render the Recommendations view (high-EV bets)
@@ -205,7 +332,7 @@ with tab_reco:
     )
 
 # ------------------------------------------------------------
-# Open Bets Tab
+# Open Bets Tab (active paper trades)
 # ------------------------------------------------------------
 with tab_open:
     # Render the Open Bets view (paper trades awaiting settlement)
@@ -215,7 +342,7 @@ with tab_open:
     )
 
 # ------------------------------------------------------------
-# History Tab
+# History Tab (settled bets, bankroll curve, KPIs)
 # ------------------------------------------------------------
 with tab_hist:
     # Render the History view (settled bets, bankroll curve, KPIs)
