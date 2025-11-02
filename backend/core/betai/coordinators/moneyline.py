@@ -21,7 +21,7 @@ from pathlib import Path
 import pandas as pd
 
 # Import the simple logistic regression model (can be swapped for a real one later)
-from ..models.logistic_regression import MoneylineLR
+from ..models.moneyline_ensemble import Moneyline
 
 # Define the path to the registry folder where our feature lists or configs might live
 REGISTRY_DIR = Path(__file__).resolve().parents[2] / "betai" / "registry"
@@ -45,7 +45,7 @@ class MoneylineCoordinator:
     def __init__(self):
         # Create an instance of our logistic regression model
         # (This could later load a trained sklearn model instead.)
-        self.model = MoneylineLR()
+        self.model = Moneyline()
 
         # --------------------------------------------------------
         # Feature resolution logic (simple & safe):
@@ -126,5 +126,5 @@ class MoneylineCoordinator:
         # Step 3: Return a clean, structured response for the Agent
         return {
             "p_model": p,                # The probability from the model (0–1)
-            "model_name": "ml_lr_stub",  # Name of the model used (for logging/display)
+            "model_name": "ml_ensemble",  # Name of the model used (for logging/display)
         }

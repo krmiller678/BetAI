@@ -6,3 +6,4 @@ plotly>=5.18.0
 requests
 streamlit-autorefresh
 Pillow>=10.0.0
+nflreadpy
