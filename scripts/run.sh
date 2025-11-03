@@ -25,8 +25,8 @@ if [ -f ".env" ]; then
   export $(grep -v '^#' .env | grep -v '^\s*$' | xargs)
 fi
 
-# Fallback PYTHONPATH if not set in .env
-export PYTHONPATH="${PYTHONPATH:-backend/core:odds-sdk/src}"
+# force absolute PYTHONPATH pieces (repo root + subdirs)
+export PYTHONPATH="$(pwd)/backend/core:$(pwd)/odds-sdk/src:${PYTHONPATH}"
 
 # App file and port (overridable)
 APP_FILE="${APP_FILE:-frontend/streamlit_app/app.py}"

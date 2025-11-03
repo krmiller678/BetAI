@@ -68,7 +68,7 @@ if [ ! -f ".env" ]; then
   echo "Creating .env with sensible defaults..."
   cat > .env <<'ENV'
 # Runtime configuration
-PYTHONPATH=backend/core
+PYTHONPATH=backend/core:odds-sdk/src:${PYTHONPATH}
 
 # Betting defaults
 KELLY_FRACTION=0.25
