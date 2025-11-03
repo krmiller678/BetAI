@@ -38,7 +38,7 @@ from views.recommendations import render_recommendations                # Recomm
 from views.open_bets import render_open_bets                            # Open Bets tab (active simulated bets)
 from views.history import render_history                                # History tab (performance tracking)
 from views.paper_trading import render_paper_trading                    # Paper trading tab
-from views.scoreboard import render_scoreboard, render_game_details     # ESPN scoreboard + details
+from views.scoreboard.scoreboard_router import render_scoreboard        # ESPN scoreboard + details
 
 # Internal ESPN integration — scoreboard normalization
 from betai.integrations.pbp_api import fetch_scoreboard, normalize_scoreboard
@@ -282,11 +282,14 @@ with tab_scores:
         f"ESPN games: {len(games)}  •  Odds games: {len(events_same_day)}  •  Linked: {len(espn_to_odds_map)}"
     )
 
-    # Render the scoreboard strip (radio list) and get the selected event id
+    # Call the router with (games, agent, ev_threshold, skey)
     selected_eid = render_scoreboard(
-        games=games,                 # ESPN normalized games (for this date)
-        odds_events=events_same_day, # Optional: same-day Odds events for best-odds overlay
-        skey=skey,                   # Widget key helper
+        games=games,               # ESPN normalized games (for this date)
+        agent=agent,               # BettingAgent instance used by Details view
+        ev_threshold=ev_threshold, # Same threshold you set in the sidebar
+        skey=skey,                 # Your widget key helper
+        show_details_header=True,  # (optional) show big logos in details
+        header_logo_size=96,       # (optional) size of those logos
     )
 
 # ------------------------------------------------------------

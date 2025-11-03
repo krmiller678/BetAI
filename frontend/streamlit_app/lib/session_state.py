@@ -67,6 +67,7 @@ def agent() -> None:
         st.session_state.agent = BettingAgent(starting_bankroll=DEFAULT_BANKROLL)
 
 
+
 def collections() -> None:
     """
     @brief Ensure that all standard collections exist in session_state.
@@ -74,25 +75,30 @@ def collections() -> None:
       - Initializes all lists and dictionaries used by the UI.
       - Prevents key errors and maintains consistency across reruns.
     """
-    # Initialize the list of normalized events (from The Odds API) Type: List[Dict[str, Any]] 
-    if "events" not in st.session_state:
+    # ---- Core odds / trading collections ----
+    if "events" not in st.session_state:            # Normalized OddsAPI events
         st.session_state.events = []
-
-    # Initialize the timestamp of the last odds fetch (0 means never) Type: float 
-    if "last_fetch" not in st.session_state: 
+    if "last_fetch" not in st.session_state:        # Unix timestamp of last odds fetch
         st.session_state.last_fetch = 0.0
-
-    # Initialize the list of recent model recommendations Type: List[Dict[str, Any]] 
-    if "last_recs" not in st.session_state:
+    if "last_recs" not in st.session_state:         # Recent recommendations
         st.session_state.last_recs = []
-
-    # Initialize the dictionary of open paper-traded bets Type: Dict[str, Dict[str, Any]]
-    if "open_bets" not in st.session_state:
+    if "open_bets" not in st.session_state:         # Paper-trade open positions
         st.session_state.open_bets = {}
-
-    # Initialize the list of settled bets (for History tab) Type: List[Dict[str, Any]] 
-    if "history" not in st.session_state:
+    if "history" not in st.session_state:           # Settled bets
         st.session_state.history = []
+
+    # ---- Scoreboard / ESPN ↔ OddsAPI wiring ----
+    if "sb_mode" not in st.session_state:           # "grid" | "detail"
+        st.session_state.sb_mode = "grid"
+    if "selected_event" not in st.session_state:    # ESPN event id or None
+        st.session_state.selected_event = None
+    if "espn_to_odds" not in st.session_state:      # ESPN event id -> OddsAPI game id
+        st.session_state.espn_to_odds = {}
+
+    # ---- Cross-provider date selection (kept here so it's always present) ----
+    from datetime import date                       # Local import to avoid top-level dependency
+    if "slate_date" not in st.session_state:        # Calendar day for ESPN + Odds filtering
+        st.session_state.slate_date = date.today()
 
 
 # ============================================================
