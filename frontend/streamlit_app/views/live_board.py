@@ -153,12 +153,15 @@ def render_live_board(
                     eval_key  = skey("eval",  game_id, offer.get("market"), offer.get("bookmaker"), idx)
                     place_key = skey("place", game_id, offer.get("market"), offer.get("bookmaker"), idx)
 
+                    base_ctx = offer.get("context", {}) or {}
+                    ctx = {**base_ctx, "home_team": home_name, "away_team": away_name}
+
                     # Actions
                     if c1.button("Evaluate", key=eval_key):
                         rec = agent.make_recommendation(
                             market=offer["market"],
                             side=offer["side"],
-                            context=offer.get("context", {}),
+                            context=ctx,
                             odds_value=offer["decimal_odds"],
                             odds_type="decimal",
                             ev_threshold=ev_threshold,
@@ -170,7 +173,7 @@ def render_live_board(
                         rec = agent.make_recommendation(
                             market=offer["market"],
                             side=offer["side"],
-                            context=offer.get("context", {}),
+                            context=ctx,
                             odds_value=offer["decimal_odds"],
                             odds_type="decimal",
                             ev_threshold=ev_threshold,

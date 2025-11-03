@@ -32,9 +32,24 @@ fi
 # shellcheck disable=SC1091
 source .venv/bin/activate
 
-# Upgrade pip and install requirements
-echo "Upgrading pip..."
-python -m pip install --upgrade pip
+# Ensure pip exists and works inside the venv (handles broken installs)
+echo "Ensuring pip is available and up to date..."
+
+# 1) Try ensurepip first
+if ! python -c "import pip" >/dev/null 2>&1; then
+  echo "pip not found — using ensurepip..."
+  python -m ensurepip --upgrade || true
+fi
+
+# 2) If pip._internal is still missing, force-reinstall via get-pip.py
+if ! python -c "import pip, pip._internal" >/dev/null 2>&1; then
+  echo "pip looks corrupted — bootstrapping with get-pip.py..."
+  curl -sS https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py
+  python /tmp/get-pip.py --force-reinstall
+fi
+
+# 3) Final upgrade of build tooling
+python -m pip install --upgrade pip setuptools wheel
 
 if [ -f "requirements.txt" ]; then
   echo "Installing packages from requirements.txt..."

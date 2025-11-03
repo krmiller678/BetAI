@@ -7,3 +7,4 @@ requests
 streamlit-autorefresh
 Pillow>=10.0.0
 nflreadpy
+-e ./odds-sdk

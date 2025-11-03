@@ -4,7 +4,7 @@
 @details
   Responsibilities
   - Fetch and memo-cache ESPN `/summary` for a given `event_id` (short TTL).
-  - Normalize ESPN’s payload shape (handles optional `gamepackageJSON` wrapper).
+  - Normalize ESPN's payload shape (handles optional `gamepackageJSON` wrapper).
   - Render:
       • Optional large header (logos + centered score/status)
       • Compact title/status/venue/final line
@@ -538,7 +538,9 @@ def render_offers_bucket(title: str,
                          game_id: str,
                          agent: Any,
                          ev_threshold: float,
-                         skey: Callable[..., str]) -> None:
+                         skey: Callable[..., str],
+                         home_team: str,
+                         away_team: str) -> None:
     """
     @brief      Render one market bucket of offers with Evaluate / Place actions.
     @details
@@ -637,10 +639,14 @@ def render_offers_bucket(title: str,
                 # Pass offer information to the agent for EV logic
                 # Agent handles probability model + bankroll sizing
                 # ------------------------------------------------
+
+                base_ctx = offer.get("context", {}) or {}
+                ctx = {**base_ctx, "home_team": home_team, "away_team": away_team}
+
                 rec: Dict[str, Any] = agent.make_recommendation(
                     market=market.lower(),                   # Normalize market name
                     side=side,                               # Side label ("DET ML")
-                    context=offer.get("context", {}),        # Context dictionary (team stats, game info)
+                    context=ctx,        # Context dictionary (team stats, game info)
                     odds_value=float(am),                    # American odds as float
                     odds_type="american",                    # Format type (agent will convert internally)
                     ev_threshold=ev_threshold,               # EV threshold for "BET"/"NO BET"
@@ -670,10 +676,13 @@ def render_offers_bucket(title: str,
                 # ------------------------------------------------
                 # Generate the same recommendation record for placing
                 # ------------------------------------------------
+                base_ctx = offer.get("context", {}) or {}
+                ctx = {**base_ctx, "home_team": home_team, "away_team": away_team}
+                
                 rec: Dict[str, Any] = agent.make_recommendation(
                     market=market.lower(),
                     side=side,
-                    context=offer.get("context", {}),
+                    context=ctx,
                     odds_value=float(am),
                     odds_type="american",
                     ev_threshold=ev_threshold,
@@ -793,10 +802,10 @@ def render_game_details(
         offers: List[Dict[str, Any]] = odds_payload.get("offers", []) or []
         buckets: Dict[str, List[Dict[str, Any]]] = group_offers_by_market(offers)
         game_id: str = odds_payload.get("game_id", "—")
-        render_offers_bucket("Moneyline", buckets.get("moneyline", []), game_id, agent, ev_threshold, skey)
-        render_offers_bucket("Spread",    buckets.get("spread",    []), game_id, agent, ev_threshold, skey)
-        render_offers_bucket("Total",     buckets.get("total",     []), game_id, agent, ev_threshold, skey)
-        render_offers_bucket("Other",     buckets.get("other",     []), game_id, agent, ev_threshold, skey)
+        render_offers_bucket("Moneyline", buckets.get("moneyline", []), game_id, agent, ev_threshold, skey, home_team=home_name, away_team=away_name)
+        render_offers_bucket("Spread",    buckets.get("spread",    []), game_id, agent, ev_threshold, skey, home_team=home_name, away_team=away_name)
+        render_offers_bucket("Total",     buckets.get("total",     []), game_id, agent, ev_threshold, skey, home_team=home_name, away_team=away_name)
+        render_offers_bucket("Other",     buckets.get("other",     []), game_id, agent, ev_threshold, skey, home_team=home_name, away_team=away_name)
     else:
         st.caption("No matching OddsAPI event found for this game (yet).")
 
