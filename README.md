@@ -19,14 +19,14 @@
   <a href="#usage">How to Use</a> •
   <a href="#planned-features">Planned Features</a> •
   <a href="#acknowledgements">Acknowledgements</a> •
-</p>  
+</p>
 
 <p align="center">
- 
+
 <img src="">
-</p>                                                                                                                             
-                                                                                                                                                      
-## About The Project 
+</p>
+
+## About The Project
 Agentic AI Application with Streamlit frontend implementing supervised machine learning models to predict win probabilities of live football wagers.
 
 <a id="quick-start"></a>
@@ -72,7 +72,7 @@ python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
-Install Dependencies:  
+Install Dependencies:
 ```bash
 pip install -r requirements.txt
 ```
@@ -116,7 +116,57 @@ Access the sidebar to adjust:
 - Kelly fraction (risk management)
 - Expected value threshold for bet recommendations
 
-**NOTE:** This is a paper trading simulation for educational purposes. No real bets are placed. 
+**NOTE:** This is a paper trading simulation for educational purposes. No real bets are placed.
+
+## OddsAPI SDK
+
+This project includes a custom-built Python SDK for The Odds API, providing a robust and type-safe interface for fetching live sports betting odds.
+
+### Features
+
+- ✅ **Type Safety**: Full type hints and dataclasses for all API responses
+- ✅ **Rate Limiting**: Built-in token bucket algorithm to respect API limits
+- ✅ **Retry Logic**: Exponential backoff with jitter for transient failures
+- ✅ **Error Handling**: Custom exceptions with clear error messages
+- ✅ **Thread Safe**: Safe for concurrent applications
+- ✅ **Configurable**: Customizable rate limits and retry behavior
+
+### Quick Example
+
+```python
+from oddsapi import OddsAPIClient, Region, Market, OddsFormat
+
+# Initialize client
+client = OddsAPIClient(api_key="your-api-key")
+
+# Get available sports
+sports = client.get_sports(active_only=True)
+
+# Get NFL odds with all markets
+odds = client.get_odds(
+    sport_key="americanfootball_nfl",
+    regions=[Region.US],
+    markets=[Market.H2H, Market.SPREADS, Market.TOTALS],
+    odds_format=OddsFormat.AMERICAN
+)
+```
+
+### Installation
+
+The SDK is included in this project and can be used directly:
+
+```bash
+# The SDK is located in odds-sdk/ directory
+# Install in development mode if needed
+cd odds-sdk
+pip install -e .
+```
+
+### Documentation
+
+For detailed documentation, API reference, and advanced usage examples, see the [OddsAPI SDK README](odds-sdk/README.md).
+
+The SDK is designed as a reusable component and can be used independently of the main BetAI application.
 
 ## Planned Features
 - [ ] Integration with live odds APIs
@@ -124,7 +174,7 @@ Access the sidebar to adjust:
 - [ ] Historical backtesting capabilities
 - [ ] Calibration plots and Brier score analysis
 - [ ] Multi-league support
-- [ ] Real-time model retraining pipeline 
+- [ ] Real-time model retraining pipeline
 
 ## Acknowledgements
 - [Streamlit](https://streamlit.io/) - For the amazing web framework

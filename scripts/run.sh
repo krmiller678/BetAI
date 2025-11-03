@@ -26,7 +26,7 @@ if [ -f ".env" ]; then
 fi
 
 # Fallback PYTHONPATH if not set in .env
-export PYTHONPATH="${PYTHONPATH:-backend/core}"
+export PYTHONPATH="${PYTHONPATH:-backend/core:odds-sdk/src}"
 
 # App file and port (overridable)
 APP_FILE="${APP_FILE:-frontend/streamlit_app/app.py}"
