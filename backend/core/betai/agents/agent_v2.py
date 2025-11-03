@@ -17,6 +17,7 @@ from typing import Any, Dict, Literal
 # Import the coordinator(s) we currently support.
 # You can add SpreadCoordinator / TotalCoordinator later the same way.
 from ..coordinators.moneyline import MoneylineCoordinator
+from ..coordinators.spread import SpreadCoordinator
 
 
 # ------------------------------------------------------------
@@ -61,7 +62,7 @@ class BettingAgent:
         # Start with Moneyline only; add others as you build them.
         self.coordinators = {
             "moneyline": MoneylineCoordinator(),
-            # "spread": SpreadCoordinator(),
+            "spread": SpreadCoordinator(),
             # "total": TotalCoordinator(),
         }
 

@@ -1,0 +1,26 @@
+[
+    {
+        "key": "americanfootball_nfl",
+        "group": "American Football",
+        "title": "NFL",
+        "description": "US Football",
+        "active": true,
+        "has_outrights": false
+    },
+    {
+        "key": "basketball_nba",
+        "group": "Basketball",
+        "title": "NBA",
+        "description": "US Basketball",
+        "active": true,
+        "has_outrights": false
+    },
+    {
+        "key": "soccer_epl",
+        "group": "Soccer",
+        "title": "Premier League",
+        "description": "English Premier League",
+        "active": true,
+        "has_outrights": true
+    }
+]

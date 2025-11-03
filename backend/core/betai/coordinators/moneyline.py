@@ -21,7 +21,7 @@ from pathlib import Path
 import pandas as pd
 
 # Import the simple logistic regression model (can be swapped for a real one later)
-from ..models.logistic_regression import MoneylineLR
+from ..models.moneyline_ensemble import Moneyline
 
 # Define the path to the registry folder where our feature lists or configs might live
 REGISTRY_DIR = Path(__file__).resolve().parents[2] / "betai" / "registry"
@@ -45,58 +45,7 @@ class MoneylineCoordinator:
     def __init__(self):
         # Create an instance of our logistic regression model
         # (This could later load a trained sklearn model instead.)
-        self.model = MoneylineLR()
-
-        # --------------------------------------------------------
-        # Feature resolution logic (simple & safe):
-        # 1) Prefer the model's declared feature_list (single source of truth).
-        # 2) If the features file exists AND has at least one non-comment line,
-        #    use that to override (lets you tweak without code changes).
-        # 3) If neither provides anything, fall back to a sensible default list.
-        # --------------------------------------------------------
-
-        # 1) Start from the model's own feature list (if provided)
-        self.feature_list = list(getattr(self.model, "feature_list", []) or [])
-
-        # 2) Optional file override (only if the file actually contains features)
-        try:
-            lines = FEATURES_FILE.read_text().splitlines()
-            file_features = [ln.strip() for ln in lines if ln.strip() and not ln.startswith("#")]
-            if file_features:  # only override if non-empty
-                self.feature_list = file_features
-        except FileNotFoundError:
-            # Silently ignore; we'll use model/defaults
-            pass
-
-        # 3) Final fallback (guarantee columns exist)
-        if not self.feature_list:
-            self.feature_list = [
-                "seconds_left",       # How much time remains in the game
-                "score_diff",         # Current score difference (positive = team is winning)
-                "is_home",            # Whether the team is playing at home
-                "pregame_elo_diff",   # Pre-game Elo rating difference
-                "has_possession",     # Whether the team currently has possession
-            ]
-
-    # --------------------------------------------------------
-    # @function _build_row
-    # @brief Converts a context dictionary into a single model row.
-    # @param context A dictionary containing live game data.
-    # @return A pandas DataFrame with one row of numeric features.
-    # @details
-    # Think of this step like creating a scouting report for the current play.
-    # Each feature (like score_diff or is_home) is one "box" we fill in with numbers
-    # before we ask the model to make its judgment.
-    # --------------------------------------------------------
-    def _build_row(self, context: Dict[str, Any]) -> pd.DataFrame:
-        # Convert all expected features into floats, using 0.0 for any missing values
-        row = {f: float(context.get(f, 0.0)) for f in self.feature_list}
-
-        # Build a DataFrame because our model expects tabular input
-        df = pd.DataFrame([row], columns=self.feature_list)
-
-        # Return the structured single-row DataFrame
-        return df
+        self.model = Moneyline()
 
     # --------------------------------------------------------
     # @function recommend
@@ -116,15 +65,11 @@ class MoneylineCoordinator:
     #   }
     # --------------------------------------------------------
     def recommend(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        # Step 1: Build the feature row from the context
-        X = self._build_row(context)
+        # Get the ensemble probability
+        
+        p = float(self.model.predict_proba(context))
 
-        # Step 2: Ask the model for its predicted probability
-        # (currently uses our simple stub model that adds small bonuses for good conditions)
-        p = float(self.model.predict_proba(X))
-
-        # Step 3: Return a clean, structured response for the Agent
         return {
             "p_model": p,                # The probability from the model (0–1)
-            "model_name": "ml_lr_stub",  # Name of the model used (for logging/display)
+            "model_name": "ml_ensemble",  # Name of the model used (for logging/display)
         }
