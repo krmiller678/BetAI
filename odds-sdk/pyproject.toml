@@ -48,3 +48,15 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+
+[tool.pyright]
+typeCheckingMode = "basic"             
+reportOptionalMemberAccess = "warning"
+reportOptionalSubscript = "warning"
+reportOptionalCall = "warning"
+reportOptionalIterable = "warning"
+reportOptionalContextManager = "warning"
+reportOptionalOperand = "warning"
+reportOptionalImport = "warning"
+reportNoneAssignment = "none"
+reportOptionalArgument = "warning"

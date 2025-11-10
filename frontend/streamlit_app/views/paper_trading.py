@@ -253,7 +253,7 @@ def render_paper_trading(
             cols = [c for c in ["date", "side", "market", "decimal_odds", "stake", "result", "pnl"] if c in hdf.columns]
             if cols:
                 st.caption("Recent settles")
-                st.dataframe(hdf[cols].sort_values(cols[0], ascending=False).head(5), use_container_width=True)
+                st.dataframe(hdf[cols].sort_values(cols[0], ascending=False).head(5), width='stretch')
 
 
 # ============================================================

@@ -126,7 +126,7 @@ def render_scoreboard(
     # -------------------------
     if mode == "detail" and selected_eid:
         # Back button above the details view for navigation
-        if st.button("← Back to Scoreboard", key=skey("sb_back_to_grid"), use_container_width=False):
+        if st.button("← Back to Scoreboard", key=skey("sb_back_to_grid"), width='stretch'):
             _back_to_grid()
 
         # Render the single-game details (handles odds + Evaluate/Place buttons)

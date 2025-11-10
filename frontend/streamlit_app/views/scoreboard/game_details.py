@@ -591,9 +591,9 @@ def render_offers_bucket(title: str,
         # --------------------------------------------------------
         # Extract relevant offer information
         # --------------------------------------------------------
-        book: str = offer.get("bookmaker", "—")     # Bookmaker name
-        market: str = offer.get("market", "—")       # Market type (moneyline, spread, etc.)
-        side: str = offer.get("side", "—")           # Team or bet side label
+        book: str = offer.get("bookmaker", "—")         # Bookmaker name
+        market: str = offer.get("market", "—")          # Market type (moneyline, spread, etc.)
+        side: str = offer.get("side", "—")              # Team or bet side label
 
         # --------------------------------------------------------
         # Convert or extract AMERICAN odds (+145 / -110)
@@ -628,7 +628,7 @@ def render_offers_bucket(title: str,
         # ========================================================
         # Evaluate Button — Calls agent to compute Expected Value
         # ========================================================
-        if c1.button("Evaluate", key=eval_key, use_container_width=True):
+        if c1.button("Evaluate", key=eval_key, width='stretch'):
 
             # Guard against missing or invalid odds
             if am is None:
@@ -644,12 +644,12 @@ def render_offers_bucket(title: str,
                 ctx = {**base_ctx, "home_team": home_team, "away_team": away_team}
 
                 rec: Dict[str, Any] = agent.make_recommendation(
-                    market=market.lower(),                   # Normalize market name
-                    side=side,                               # Side label ("DET ML")
-                    context=ctx,        # Context dictionary (team stats, game info)
-                    odds_value=float(am),                    # American odds as float
-                    odds_type="american",                    # Format type (agent will convert internally)
-                    ev_threshold=ev_threshold,               # EV threshold for "BET"/"NO BET"
+                    market=market.lower(),                              # Normalize market name
+                    side=side,                                          # Side label ("DET ML")
+                    context=ctx,                                        # Context dictionary (team stats, game info)
+                    odds_value=float(am),                               # American odds as float
+                    odds_type="american",                               # Format type (agent will convert internally)
+                    ev_threshold=ev_threshold,                          # EV threshold for "BET"/"NO BET"
                 )
 
                 # ------------------------------------------------
@@ -666,7 +666,7 @@ def render_offers_bucket(title: str,
         # ========================================================
         # Place (paper) Button — Simulates placing a virtual bet
         # ========================================================
-        if c2.button("Place (paper)", key=place_key, use_container_width=True):
+        if c2.button("Place (paper)", key=place_key, width='stretch'):
 
             # Guard against missing odds
             if am is None:
