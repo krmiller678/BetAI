@@ -155,8 +155,8 @@ class BettingAgent:
         
         Examples:
            (EVEN)     decimal 2.00  -> 1/2.00 = 0.50 → must win 50% to break even
-           (UNDERDOG) decimal 1.833 -> 1/1.833 = 0.545 → must win 54.5% to break even
-           (FAVORITE) decimal 2.50  -> 1/2.50 = 0.40 → must win 40% to break even
+           (FAVORITE) decimal 1.833 -> 1/1.833 = 0.545 → must win 54.5% to break even
+           (UNDERDOG) decimal 2.50  -> 1/2.50 = 0.40 → must win 40% to break even
         
         @param decimal_odds The decimal odds value.
         @return A float between 0 and 1 representing the implied probability.
