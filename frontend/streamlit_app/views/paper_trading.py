@@ -138,13 +138,16 @@ def render_paper_trading(
             eval_key  = skey("pt_eval",  row["game_id"], row["market"], row["bookmaker"], idx)
             place_key = skey("pt_place", row["game_id"], row["market"], row["bookmaker"], idx)
 
+            base_ctx = row.get("context", {}) or {}
+            ctx = {**base_ctx, "home_team": row.get("home"), "away_team": row.get("away")}
+
             # Column 1: Evaluate — ask agent for decision with current EV threshold
             if c1.button("Evaluate", key=eval_key):
                 # Call the agent with the minimal context required
                 rec = agent.make_recommendation(
                     market=row["market"],
                     side=row["side"],
-                    context=row.get("context", {}),
+                    context=ctx,
                     odds_value=float(row["decimal_odds"]),
                     odds_type="decimal",
                     ev_threshold=ev_threshold,
@@ -160,7 +163,7 @@ def render_paper_trading(
                 rec = agent.make_recommendation(
                     market=row["market"],
                     side=row["side"],
-                    context=row.get("context", {}),
+                    context=ctx,
                     odds_value=float(row["decimal_odds"]),
                     odds_type="decimal",
                     ev_threshold=ev_threshold,

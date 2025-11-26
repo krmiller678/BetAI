@@ -123,8 +123,22 @@ class Spread:
 
         ensemble_prob = (rf_prob + nb_prob + lr_prob) / 3.0
 
-        # Debug prints for visibility when running locally
-        print(f"Spread features built for {away_team} @ {home_team} (week {used_week}, season {season})")
-        print(f"Model probs: rf={rf_prob:.3f}, nb={nb_prob:.3f}, lr={lr_prob:.3f} -> ensemble={ensemble_prob:.3f}")
+        # Show features and model outputs for local debugging (similar to Moneyline)
+        pd.set_option('display.max_rows', None)
+        pd.set_option('display.max_columns', None)
+        pd.set_option('display.width', None)
+        print(features)
+
+        print(f"\n=== Spread Cover Predictions ===")
+        print(f"Matchup: {away_team} @ {home_team} (Week {used_week}, Season {season})")
+        print(f"Random Forest (cover): {rf_prob:.3f}")
+        print(f"Naive Bayes (cover):   {nb_prob:.3f}")
+        print(f"Logistic Regression:    {lr_prob:.3f}")
+
+        print(f"Ensemble Average:       {ensemble_prob:.3f}\n")
+
+        # Simple, actionable recommendation
+        side = "HOME (cover)" if ensemble_prob >= 0.5 else "AWAY (cover)"
+        print(f"Recommendation: TAKE {side} (ensemble p = {ensemble_prob:.3f})")
 
         return ensemble_prob
