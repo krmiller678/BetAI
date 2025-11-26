@@ -7,23 +7,36 @@ from ..abbreviations import nfl_team_abbr
 
 
 class Spread:
-    """Ensemble wrapper for spread models mirroring the moneyline ensemble API."""
+    """Ensemble wrapper for spread models.
+
+    This class builds matchup features (home minus away stats) and queries
+    three trained models (LR, NB, RF). It averages their "cover"
+    probabilities and returns a single ensemble estimate.
+    """
 
     def build_matchup_features(self, home_team: str, away_team: str, week: int, season: int) -> pd.DataFrame:
+        """Return a one-row DataFrame of features for the given matchup.
+
+        The features are simple differences (home - away) for the stats used
+        by the trained spread models. If exact week rows are missing, the
+        function will try to fall back to the most recent available week
+        for each team.
         """
-        Build the same feature set used by the spread-trained models.
-        Copied/adapted from the coordinator's _compute_features implementation.
-        """
+        # Load team-level stats for the requested season
         stats = nfl.load_team_stats(seasons=[season]).to_pandas()
 
+        # Select rows for the exact week; fallback logic below will handle
+        # cases where week-level rows are not yet available.
         home = stats[(stats["team"] == home_team) & (stats["week"] == week)]
         away = stats[(stats["team"] == away_team) & (stats["week"] == week)]
 
+        # Helper: when exact-week rows are missing, pick the best fallback week
         def _fallback_team_row(team_code: str, req_week: int):
             tw = stats[stats["team"] == team_code]
             if tw.empty:
                 return pd.DataFrame(), None
             available = sorted(set(int(x) for x in tw["week"].tolist() if pd.notna(x)))
+            # Prefer the latest week <= requested week, otherwise use max available
             candidates = [w for w in available if w <= int(req_week)]
             use_week = max(candidates) if candidates else max(available)
             return tw[tw["week"] == use_week], use_week
@@ -39,6 +52,7 @@ class Spread:
                     f"Could not find stats for {home_team} vs {away_team} (Week {week}, Season {season})"
                 )
 
+        # Safe subtraction helper: return 0.0 if either column is missing
         def safe_diff(col_home, col_away):
             return (
                 float(home[col_home].values[0] - away[col_away].values[0])
@@ -67,24 +81,27 @@ class Spread:
         return sample
 
     def predict_proba(self, context: dict) -> float:
-        """
-        Compute an ensemble spread-cover probability from the provided context.
+        """Return ensemble cover probability for the provided context.
 
-        Behavior mirrors `moneyline_ensemble.Moneyline.predict_proba`:
-        - Map display names via `nfl_team_abbr` when available.
-        - Try weeks 10..1 until matchup features can be built from nflreadpy.
-        - Query LR/NB/RF spread models and average their cover probabilities.
+        Steps:
+        1. Resolve season and team identifiers (map display names to
+           abbreviations when possible).
+        2. Try candidate weeks (provided week or recent weeks) and call
+           `build_matchup_features` until features are available.
+        3. If a spread line is present in `context`, insert it into the
+           features DataFrame.
+        4. Load each model, get per-model cover probabilities, and return
+           their arithmetic mean.
         """
-        # Season default mirrors moneyline (easy to change later)
+
+        # 1) Basic context normalization
         season = int(context.get("season") or 2025)
-
-        # Map display names to abbreviations when possible
         home_key = context.get("home_team") or context.get("home")
         away_key = context.get("away_team") or context.get("away")
         home_team = nfl_team_abbr.get(home_key, home_key)
         away_team = nfl_team_abbr.get(away_key, away_key)
 
-        # Use provided week if present, otherwise try recent weeks
+        # 2) Candidate weeks: respect provided week, else try recent weeks
         provided_week = context.get("week")
         candidates = [int(provided_week)] if provided_week is not None else list(range(10, 0, -1))
 
@@ -103,7 +120,7 @@ class Spread:
         if features is None:
             raise ValueError(f"Could not build features for {away_team} @ {home_team}. Last error: {last_exc}")
 
-        # If the context carries a spread point, ensure the feature contains it
+        # 3) Inject spread_line into features if provided by caller
         if "point" in context or "spread" in context:
             spread_val = context.get("point") or context.get("spread")
             try:
@@ -111,25 +128,24 @@ class Spread:
             except Exception:
                 pass
 
-        # Load models
+        # 4) Load models and get per-model probabilities
         rf = RFSpread()
         nb = NBSpread()
         lr = LRSpread()
 
-        # Each model's predict_proba is expected to return an array-like
         rf_prob = float(rf.predict_proba(features)[0])
         nb_prob = float(nb.predict_proba(features)[0])
         lr_prob = float(lr.predict_proba(features)[0])
 
         ensemble_prob = (rf_prob + nb_prob + lr_prob) / 3.0
 
-        # Show features and model outputs for local debugging (similar to Moneyline)
+        # 5) Debug prints
         pd.set_option('display.max_rows', None)
         pd.set_option('display.max_columns', None)
         pd.set_option('display.width', None)
         print(features)
 
-        print(f"\n=== Spread Cover Predictions ===")
+        print("\n=== Spread Cover Predictions ===")
         print(f"Matchup: {away_team} @ {home_team} (Week {used_week}, Season {season})")
         print(f"Random Forest (cover): {rf_prob:.3f}")
         print(f"Naive Bayes (cover):   {nb_prob:.3f}")
@@ -137,7 +153,6 @@ class Spread:
 
         print(f"Ensemble Average:       {ensemble_prob:.3f}\n")
 
-        # Simple, actionable recommendation
         side = "HOME (cover)" if ensemble_prob >= 0.5 else "AWAY (cover)"
         print(f"Recommendation: TAKE {side} (ensemble p = {ensemble_prob:.3f})")
 
