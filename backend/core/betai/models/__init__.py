@@ -8,7 +8,10 @@ Keeping imports lightweight at package import time avoids loading heavy
 dependencies until a specific model is requested.
 """
 
-from . import moneyline, spread, total
+# Import only the model subpackages that actually exist in this repo.
+# The 'total' module is not present (coordinator may exist elsewhere),
+# so avoid importing it here to prevent ImportError / circular import.
+from . import moneyline, spread
 from . import model_utils, abbreviations
 
-__all__ = ["moneyline", "spread", "total", "model_utils", "abbreviations"]
+__all__ = ["moneyline", "spread", "model_utils", "abbreviations"]
