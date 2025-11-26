@@ -32,9 +32,9 @@ import nflreadpy as nfl
 
 # Import the trained spread-specific models (these load the spread-target
 # trained artifacts and the matching feature lists).
-from ..models.logistic_regression_spread import LRSpread
-from ..models.naive_bayes_spread import NBSpread
-from ..models.random_forest_spread import RFSpread
+from ..models.spread.logistic_regression_spread import LRSpread
+from ..models.spread.naive_bayes_spread import NBSpread
+from ..models.spread.random_forest_spread import RFSpread
 
 # Define the path to the registry folder where our feature lists or configs might live
 REGISTRY_DIR = Path(__file__).resolve().parents[2] / "betai" / "registry"
