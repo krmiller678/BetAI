@@ -12,6 +12,6 @@ dependencies until a specific model is requested.
 # The 'total' module is not present (coordinator may exist elsewhere),
 # so avoid importing it here to prevent ImportError / circular import.
 from . import moneyline, spread
-from . import model_utils, abbreviations
+from . import abbreviations
 
-__all__ = ["moneyline", "spread", "model_utils", "abbreviations"]
+__all__ = ["moneyline", "spread", "abbreviations"]

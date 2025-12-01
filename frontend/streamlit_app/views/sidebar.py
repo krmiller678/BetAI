@@ -61,7 +61,7 @@ def render_sidebar(*, agent: Any) -> Dict[str, Any]:
     # ------------------------------------------------------------
     markets = st.sidebar.text_input(
         label="Markets",
-        value=os.getenv("ODDS_MARKETS", "h2h,spreads,totals"),
+        value=os.getenv("ODDS_MARKETS", "h2h,spreads"),
         help="Comma-separated market keys (e.g., h2h,spreads,totals).",
     )
 

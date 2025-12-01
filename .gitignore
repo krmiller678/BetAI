@@ -206,6 +206,8 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# Models
-models/trained_models/
-backend/core/betai/models/trained_models/
+# ============================================
+# BetAI ML Model Artifacts (auto-trained)
+# ============================================
+backend/core/betai/models/moneyline/trained_models/
+backend/core/betai/models/spread/trained_models/

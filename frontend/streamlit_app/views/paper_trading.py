@@ -122,7 +122,7 @@ def render_paper_trading(
         # --------------------------------------------------------
         for idx, row in view.reset_index(drop=True).iterrows():
             # Build a row of columns to show offer details and actions
-            c0, c1, c2, c3 = st.columns([3, 1, 1, 2])
+            c0, c1, c2 = st.columns([3, 1, 1])
 
             # Column 0: readable summary (book, market, side, odds)
             c0.markdown(
@@ -131,8 +131,8 @@ def render_paper_trading(
             )
 
             # Column 3: collapsible context payload for transparency
-            with c3.expander("Context", expanded=False):
-                st.json(row.get("context", {}))
+            # with c3.expander("Context", expanded=False):
+            #     st.json(row.get("context", {}))
 
             # Unique keys for buttons using game/market/book/row index
             eval_key  = skey("pt_eval",  row["game_id"], row["market"], row["bookmaker"], idx)

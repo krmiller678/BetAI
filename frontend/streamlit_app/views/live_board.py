@@ -137,7 +137,7 @@ def render_live_board(
                     return
                 st.markdown(f"**{title}**")
                 for idx, offer in enumerate(items):
-                    c0, c1, c2, c3 = st.columns([3, 1, 1, 2])
+                    c0, c1, c2 = st.columns([3, 1, 1])
 
                     # Offer summary
                     c0.markdown(
@@ -146,8 +146,8 @@ def render_live_board(
                     )
 
                     # Details expander
-                    with c3.expander("Context", expanded=False):
-                        st.json(offer.get("context", {}))
+                    # with c3.expander("Context", expanded=False):
+                    #     st.json(offer.get("context", {}))
 
                     # Keys
                     eval_key  = skey("eval",  game_id, offer.get("market"), offer.get("bookmaker"), idx)
@@ -185,8 +185,8 @@ def render_live_board(
             # Render buckets in a consistent order
             _render_bucket("Moneyline", grouped.get("moneyline", []))
             _render_bucket("Spread",    grouped.get("spread", []))
-            _render_bucket("Total",     grouped.get("total", []))
-            _render_bucket("Other",     grouped.get("other", []))
+            #_render_bucket("Total",     grouped.get("total", []))
+            #_render_bucket("Other",     grouped.get("other", []))
 
         # Horizontal divider between games
         st.divider()

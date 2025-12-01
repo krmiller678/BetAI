@@ -139,7 +139,7 @@ def _filter_events_by_date(events: List[Dict[str, Any]] | None, target: date) ->
 # ============================================================
 
 # Configure the Streamlit page title and layout mode
-st.set_page_config(page_title="BetAI — Live Odds", layout="wide")
+st.set_page_config(page_title="BetAI — Live Odds", layout="wide", initial_sidebar_state="collapsed")
 
 
 # ============================================================

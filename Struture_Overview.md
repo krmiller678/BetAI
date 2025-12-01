@@ -1,112 +1,137 @@
+# BetAI — Project Structure Overview 
+
+High–level layout of the BetAI repository and what each piece does.
+
+```text
 BetAI/
 │
-├── backend/                           # All server-side logic (API, models, data, business logic)
-│   ├── api/                           # FastAPI or Flask REST API service
-│   │   ├── main.py                    # App entrypoint (FastAPI)
-│   │   ├── routes/                    # Organized API endpoints
-│   │   │   ├── bets.py
-│   │   │   ├── metrics.py
-│   │   │   └── models.py
-│   │   ├── db/                        # Database layer
-│   │   │   ├── models.py              # SQLAlchemy ORM models
-│   │   │   ├── crud.py                # Create/Read/Update/Delete functions
-│   │   │   ├── schema.py              # Pydantic validation schemas
-│   │   │   ├── alembic/               # Migrations folder
-│   │   │   └── __init__.py
-│   │   ├── services/                  # API-level service logic
-│   │   │   └── bets_service.py
-│   │   ├── dependencies/              # FastAPI dependencies (auth, db session, etc.)
-│   │   ├── settings.py                # loads env vars / config
-│   │   ├── logging_config.py          # standard logging setup
-│   │   ├── __init__.py
-│   │   └── Dockerfile                 # optional container for API
-│   │
-│   ├── core/                          # Core ML and agent logic (pure Python library)
-│   │   ├── betai/                     # installable package: "from betai.agent import ..."
-│   │   │   ├── __init__.py
-|   |   ├── agents/                    # agent logic (brain/coach)
-|   |   │   ├── __init__.py
-|   |   │   ├── agent_v1.py            # legacy version
-|   |   │   ├── agent_v2.py            # new structured one
-│   │   │   ├── coordinators/          # market-specific strategy modules
-│   │   │   │   ├── moneyline.py
-│   │   │   │   ├── spread.py
-│   │   │   │   └── total.py
-│   │   │   ├── models/                # ML model loaders + utils
-│   │   │   │   ├── logistic_regression.py
-│   │   │   │   ├── random_forest.py
-│   │   │   │   ├── naive_bayes.py
-│   │   │   │   └── model_utils.py
-│   │   │   ├── registry/              # model registry, features, metadata
-│   │   │   │   ├── registry.json
-│   │   │   │   └── moneyline_lr_features.txt
-│   │   │   └── utils/                 # common math/stats/helper functions
-│   │   ├── tests/                     # unit tests for betai core
-│   │   ├── pyproject.toml             # allows installing betai as a package
-│   │   └── setup.cfg
-│   │
-│   ├── data/                          # local or remote datasets (if applicable)
-│   │   ├── raw/
-│   │   ├── processed/
-│   │   ├── etl/                       # data cleaning, merging, or collection scripts
-│   │   │   └── nfl_data_loader.py
-│   │   └── README.md
-│   │
-│   ├── trained_models/                # versioned model artifacts (.pkl, .onnx, etc.)
-│   │   ├── moneyline/
-│   │   │   ├── lr_model.pkl
-│   │   │   ├── rf_model.pkl
-│   │   │   └── features.txt
-│   │   └── README.md
-│   │
-│   ├── notebooks/                     # research, exploration, experiments
-│   │   ├── EDA.ipynb
-│   │   └── model_training.ipynb
-│   │
-│   ├── tests/                         # integration tests for backend services
-│   └── README.md
+├── backend/                               # All core AI, models, and integrations
+│   └── core/
+│       └── betai/
+│           ├── agents/                                     # Agent "brain" that decides BET vs NO BET
+│           │   ├── __init__.py
+│           │   └── agent_v2.py                             # Main BettingAgent used by the Streamlit app
+│           │
+│           ├── coordinators/                               # Market-specific coordinators
+│           │   ├── __init__.py
+│           │   ├── moneyline.py                            # Moneyline coordinator (uses moneyline models)
+│           │   ├── spread.py                               # Spread coordinator (uses spread models)
+│           │   └── total.py                                # Stub / experimental total-market logic
+│           │
+│           ├── integrations/                               # External data integrations
+│           │   ├── __init__.py
+│           │   ├── odds_api.py                             # Wrapper around the local odds-sdk (The Odds API)
+│           │   ├── pbp_api.py                              # ESPN scoreboard + summary APIs
+│           │   └── results_api.py                          # Hooks for settlement / results (not fully used)
+│           │
+│           ├── models/                                     # ML models + training scripts
+│           │   ├── __init__.py
+│           │   │
+│           │   ├── moneyline/                              # Moneyline win-probability models
+│           │   │   ├── __init__.py
+│           │   │   ├── trained_models/
+│           │   │   │   ├── lr_moneyline.pkl
+│           │   │   │   ├── lr_moneyline_features.txt
+│           │   │   │   ├── nb_moneyline.pkl
+│           │   │   │   ├── nb_moneyline_features.txt
+│           │   │   │   ├── rf_moneyline.pkl
+│           │   │   │   └── rf_moneyline_features.txt
+│           │   │   ├── logistic_regression_moneyline.py
+│           │   │   ├── naive_bayes_moneyline.py
+│           │   │   ├── random_forest_moneyline.py
+│           │   │   ├── moneyline_ensemble.py               # Combines LR / NB / RF predictions
+│           │   │   └── models_train_moneyline.py           # Script to (re)train moneyline models
+│           │   │
+│           │   ├── spread/                                 # Spread-cover probability models
+│           │   │   ├── __init__.py
+│           │   │   ├── trained_models/
+│           │   │   │   ├── lr_spread.pkl
+│           │   │   │   ├── lr_spread_features.txt
+│           │   │   │   ├── nb_spread.pkl
+│           │   │   │   ├── nb_spread_features.txt
+│           │   │   │   ├── rf_spread.pkl
+│           │   │   │   └── rf_spread_features.txt
+│           │   │   ├── logistic_regression_spread.py
+│           │   │   ├── naive_bayes_spread.py
+│           │   │   ├── random_forest_spread.py
+│           │   │   └── spread_ensemble.py                  # Combines LR / NB / RF predictions
+│           │   │
+│           │   ├── total/                                  # Tools to evaluate models
+│           │   │   ├── __init__.py
+│           │   │   └── tools/
+│           │   │       ├── agent_eval.py
+│           │   │       ├── model_utils.py
+│           │   │       ├── moneyline_eval.py
+│           │   │       └── spread_eval.py
+│           │   │
+│           │   ├── abbreviations.py                        # Team abbreviation lookups (NFL)
+│           │   └── nflreadpy_features.txt                  # Feature list extracted from nflreadpy dataset
+│           │
+│           ├── __init__.py
+│           └── README.md                                   # Backend-focused notes / docs
 │
-├── frontend/                          # User interface(s)
-│   ├── streamlit_app/                 # Streamlit UI (modular BetAI frontend)
-│   │   ├── app.py                     # Main entry point / router for all views
-│   │   ├── application.py             # Legacy UI
-│   │   │
-│   │   ├── views/                     # Individual Streamlit views (tabs)
-│   │   │   ├── live_board.py          # Displays live games, odds, and team logos
-│   │   │   ├── paper_trading.py       # Paper trading dashboard (legacy layout + dropdowns)
-│   │   │   ├── recommendations.py     # AI-driven bet recommendations
-│   │   │   ├── open_bets.py           # Active bets with live updates
-│   │   │   └── history.py             # Bet history and performance analytics
-│   │   │
-│   │   ├── lib/                       # Shared helper modules
-│   │   │   ├── __init__.py            # Marks directory as a Python package
-│   │   │   ├── api.py                 # Handles external API calls (The Odds API, etc.)
-│   │   │   ├── session_state.py       # Centralized session state management
-│   │   │   └── utils.py               # Common utilities (e.g., logo lookups, formatting)
-│   │   │
-│   │   ├── assets/                    # Static resources for the UI
-│   │   │   └── team-logos/            # Local team logo images (e.g., nfl_det.png, nba_bos.png)
-│   │   │
-│   │   ├── .streamlit/                # Streamlit configuration (theme, server, etc.)
-│   │   │   └── config.toml            # Custom theme and server options
-│   │   │
-│   │   ├── requirements.txt           # Streamlit dependencies and helper libraries
-│   │   └── README.md                  # Frontend usage guide, setup, and structure notes
+├── frontend/                                               # Streamlit UI (what users actually see)
+│   └── streamlit_app/
+│       ├── app.py                                          # Main app router (tabs + layout)
+│       │
+│       ├── assets/                                         # Static assets (logos, images, etc.)
+│       │   └── team-logos/                                 # NFL team logos used in UI 
+│       │
+│       ├── lib/                                            # Shared helpers for the Streamlit layer
+│       │   ├── __init__.py
+│       │   ├── api.py                                      # Frontend odds/scoreboard glue helpers
+│       │   ├── api_linker.py                               # Links ESPN event_id ↔ OddsAPI game_id
+│       │   ├── session_state.py                            # Centralized session_state init + accessors
+│       │   └── utils.py                                    # Misc utilities (logos, formatting, etc.)
+│       │
+│       ├── views/                                          # Individual Streamlit “tabs” / views
+│       │   ├── __init__.py
+│       │   ├── live_board.py                               # Live Odds tab (logo strip + offers)
+│       │   ├── paper_trading.py                            # Paper Trading tab (place/manage bets)
+│       │   ├── recommendations.py                          # Recommendations tab (recent EV suggestions)
+│       │   ├── open_bets.py                                # Open Bets tab (active paper trades)
+│       │   ├── history.py                                  # History tab (bankroll curve + stats)
+│       │   ├── sidebar.py                                  # Sidebar controls (sport, EV threshold, Kelly)
+│       │   │
+│       │   └── scoreboard/                                 # Scoreboard tab + detail view
+│       │       ├── __init__.py
+│       │       ├── scorecard.py                            # Grid of games with logos/scores + Details buttons
+│       │       ├── scorecard_css.py                        # CSS injection helper for scorecard styling
+│       │       ├── game_details.py                         # Single-game view (stats + odds + Evaluate/Place)
+│       │       └── scoreboard_router.py                    # Router between grid view and details view
+│       │
+│       └── tools/                                          # Old prototypes / playground apps (not used in final)
+│           ├── app_v1.py
+│           ├── app_v2.py
+│           ├── scoreboard_tester.py
+│           └── scoreboard_tester_v2.py
+│
+├── odds-sdk/                                               # Local editable SDK for The Odds API
+│   ├── pyproject.toml                                      # Defines the oddsapi-sdk Python package
+│   ├── README.md
+│   ├── src/
+│   │   └── oddsapi/
+│   │       ├── __init__.py                                 # Exposes OddsAPIClient and type helpers
+│   │       ├── client.py                                   # Typed OddsAPIClient used by backend.core
+│   │       ├── http.py                                     # Low-level HTTP client with caching / retry
+│   │       ├── types.py                                    # Typed models for sports, events, markets, odds
+│   │       └── errors.py                                   # Custom exception types
 │   │
-│   └── web_app/                       # future production frontend (React/Next.js)
-│       ├── src/
-│       ├── package.json
-│       ├── tsconfig.json
-│       └── README.md
+│   └── tests/                                              # Unit tests for the SDK (from teammate’s work)
+│       ├── __init__.py
+│       ├── fixtures/
+│       │   ├── odds.json
+│       │   └── sports.json
+│       ├── test_client.py
+│       └── test_types.py
 │
-├── scripts/                           # helper scripts
-│   ├── setup.sh                       # create venv, install deps
-│   ├── run.sh                         # run Streamlit app
-│   ├── train_models.sh                # retrain + save models
-│   └── seed_db.sh                     # load initial DB data
+├── scripts/                                                # Helper scripts (developer + TA entry points)
+│   ├── setup.sh                                            # Create venv, install deps, install odds-sdk, write .env
+│   ├── run.sh                                              # Activate venv + run Streamlit app with correct PYTHONPATH
+│   └── train_models.sh                                     # Retrain moneyline + spread models (saves .pkl files)
 │
-├── docker-compose.yml                 # orchestrate db/api/ui
-├── requirements.txt                   # dev-only Python deps
-├── .env.example                       # environment variable template
-├── .gitignore
-└── README.md                          # polished project overview
+├── .env                                                    # Local environment configuration (ignored by git)
+├── requirements.txt                                        # Project-wide Python dependencies
+├── README.md                                               # Top-level project description + quickstart
+├── LICENSE
+└── .gitignore
