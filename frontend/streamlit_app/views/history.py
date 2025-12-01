@@ -114,4 +114,4 @@ def render_history(*, agent: Any, history: List[Dict[str, Any]]) -> None:
     # Render the table using Streamlit's dataframe widget
     # ------------------------------------------------------------
     st.caption("Settled bets")
-    st.dataframe(table, use_container_width=True)
+    st.dataframe(table, width='stretch')

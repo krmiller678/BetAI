@@ -1,0 +1,9 @@
+passing_epa_diff
+rushing_epa_diff
+passing_yards_diff
+rushing_yards_diff
+sacks_diff
+interceptions_diff
+fumbles_forced_diff
+fg_pct_diff
+penalty_yards_diff

@@ -21,7 +21,7 @@ from pathlib import Path
 import pandas as pd
 
 # Import the simple logistic regression model (can be swapped for a real one later)
-from ..models.moneyline_ensemble import Moneyline
+from ..models.moneyline.moneyline_ensemble import Moneyline
 
 # Define the path to the registry folder where our feature lists or configs might live
 REGISTRY_DIR = Path(__file__).resolve().parents[2] / "betai" / "registry"

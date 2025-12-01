@@ -313,7 +313,7 @@ def render_scorecard(*,
                 st.markdown(" ".join(meta_bits), unsafe_allow_html=True)
 
                 # --- Bottom: Details button ---
-                if st.button("Details", key=skey("sb_det", eid), use_container_width=True):
+                if st.button("Details", key=skey("sb_det", eid), width='stretch'):
                     go_to_detail(eid)
 
                 # Close card container

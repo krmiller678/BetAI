@@ -1,182 +1,245 @@
+# 🏈 **BetAI – Intelligent Sports Betting Decision Agent**
+
 ![made-with-python](https://img.shields.io/badge/Made_with-Python-yellow)
 
-<!-- LOGO -->
-<br />
-<h1>
-<p align="center">
-  <img src="" alt="Logo", width="50%", height ="auto">
-  <br>
-</h1>
-  <p align="center">
-    BetAI
-    <br />
-    </p>
-</p>
-<p align="center">
-  • <a href="#about-the-project">About The Project</a> •
-  <a href="#quick-start">Quick Start</a> •
-  <a href="#manually-build">Build</a> •
-  <a href="#usage">How to Use</a> •
-  <a href="#planned-features">Planned Features</a> •
-  <a href="#acknowledgements">Acknowledgements</a> •
-</p>
 
-<p align="center">
+**BetAI** is an interactive AI-powered sports betting assistant that combines:
 
-<img src="">
-</p>
+- Real-time sportsbook odds  
+- Live game data from ESPN  
+- Machine learning models (moneyline + spread)  
+- An agent-based decision engine  
+- Kelly-based bankroll optimization  
+- Paper trading + history visualization  
+---
 
-## About The Project
-Agentic AI Application with Streamlit frontend implementing supervised machine learning models to predict win probabilities of live football wagers.
+# 📌 **Table of Contents**
+
+- [About the Project](#about)
+- [Quick Start](#quick-start)
+- [Setup Details](#setup-details)
+- [How to Use](#usage)
+- [Project Features](#features)
+- [Limitations](#limitations)
+- [Future Work](#future-work)
+- [Acknowledgements](#acknowledgements)
+
+---
+
+<a id="about"></a>
+# **About the Project**
+
+BetAI integrates *AI-driven win probability predictions* with *live odds* to evaluate betting edges in real time.
+
+The system architecture includes:
+
+### **1. Supervised ML Models (Moneyline & Spread)**
+Trained on historical NFL data using:
+
+- Logistic Regression  
+- Random Forest  
+- Naive Bayes  
+- Ensemble averaging for stability
+
+### **2. Live Data Aggregation**
+- **The Odds API** → sportsbook odds  
+- **ESPN Scoreboard** → game status, scores, logos  
+
+### **3. Agent-Based Decision Logic**
+For every offer, the agent computes:
+
+- Market implied probability  
+- Model probability  
+- Expected value (EV)  
+- Kelly stake fraction  
+- **BET / NO BET** recommendation  
+
+### **4. Streamlit Frontend**
+Clean multi-tab interface:
+
+- Scoreboard view  
+- Game details with live offers  
+- Live odds tab  
+- Recommendations  
+- Open bets  
+- History & bankroll performance  
+
+---
 
 <a id="quick-start"></a>
-## Quick Start 🚀
+# 🚀 **Quick Start (Mac)**
 
-Requirements:
-- Python 3.11 or later
-
-Clone from GitHub:
+### **1. Clone the repository**
 ```bash
 git clone https://github.com/krmiller678/BetAI.git
 cd BetAI
 ```
 
-Install dependencies:
+### **2. Run the environment setup script**
 ```bash
-pip install -r requirements.txt
+./scripts/setup.sh
 ```
 
-Run the application:
+This will:
+
+✔ Create a virtual environment  
+✔ Install all dependencies  
+✔ Install the Odds API SDK  
+✔ Create your `.env` file  
+✔ Train all ML models from scratch  
+✔ Prepare all directories  
+
+### **3. Add your Odds API key**
+
+Open `.env` and set:
+
+```
+ODDS_API_KEY=your_key_here
+```
+
+### **4. Launch the application**
 ```bash
-streamlit run application.py
+./scripts/run.sh
 ```
 
-The dashboard will open in your browser at `http://localhost:8501`
+Your browser will open at:
 
+👉 http://localhost:8501
 
-<a id="manually-build"></a>
-## Manually Build 🛠️
+---
 
-Requirements:
-- Python 3.11 or later
+<a id="setup-details"></a>
+# ⚙️ **Setup Details**
 
-Clone from GitHub:
-```bash
-git clone https://github.com/krmiller678/BetAI.git
-cd BetAI
-```
+The setup script handles:
 
-Create a virtual environment (recommended):
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
+- Python environment creation  
+- Fixing or reinstalling pip when necessary  
+- Installing ``requirements.txt``  
+- Installing the included `odds-sdk` package  
+- Creating the environment file  
+- Training all ML models automatically  
+- Creating standardized project folders  
 
-Install Dependencies:
-```bash
-pip install -r requirements.txt
-```
+No manual steps are required beyond inserting your API key.
 
-Run the Streamlit application:
-```bash
-streamlit run application.py
-```
+---
 
-## Usage
+<a id="usage"></a>
+# 📈 **How to Use BetAI**
 
-### Dashboard Features
+Once the app is running, the UI provides several tabs:
 
-**Live Match Analysis**
-- Enter match details including home/away teams and relevant features
-- Input bookmaker odds to get AI-powered predictions
-- View model probability vs implied odds probability
-- Get recommended bet actions with confidence levels
+---
 
-**Betting Recommendations**
-- **BET**: Model identifies positive expected value above threshold
-- **NO BET**: Insufficient edge detected
-- Recommended stake size calculated using Kelly Criterion
-- Confidence score based on expected value magnitude
+## **🏟️ Scoreboard**
+- View all games for a selected date  
+- Shows team logos, scores, game status  
+- Jump into game details  
 
-**Paper Trading Simulation**
-- Simulate bet outcomes to track performance
-- No real money involved - educational purposes only
-- Track bankroll changes over time
+---
 
-**Performance Dashboard**
-- Real-time bankroll curve visualization
-- Win/loss statistics and distribution
-- ROI and profit tracking
-- Detailed bet history with all transactions
+## **📊 Game Details**
+- Live team stats  
+- All odds from all bookmakers  
+- Evaluate or paper-trade any offer  
+- Automatic model predictions displayed  
 
-### Configuration Options
+---
 
-Access the sidebar to adjust:
-- Initial bankroll amount
-- Kelly fraction (risk management)
-- Expected value threshold for bet recommendations
+## **🔥 Live Odds**
+- Odds aggregated across all games  
+- Quick evaluate/place buttons  
+- Sorted by market (Moneyline, Spread)
 
-**NOTE:** This is a paper trading simulation for educational purposes. No real bets are placed.
+---
 
-## OddsAPI SDK
+## **🧠 Recommendations**
+Shows the model’s most recent evaluations and EVs.
 
-This project includes a custom-built Python SDK for The Odds API, providing a robust and type-safe interface for fetching live sports betting odds.
+---
 
-### Features
+## **💼 Open Bets**
+- Shows active paper trades  
+- Manual settlement controls  
 
-- ✅ **Type Safety**: Full type hints and dataclasses for all API responses
-- ✅ **Rate Limiting**: Built-in token bucket algorithm to respect API limits
-- ✅ **Retry Logic**: Exponential backoff with jitter for transient failures
-- ✅ **Error Handling**: Custom exceptions with clear error messages
-- ✅ **Thread Safe**: Safe for concurrent applications
-- ✅ **Configurable**: Customizable rate limits and retry behavior
+---
 
-### Quick Example
+## **📜 History + Graphs**
+Visualizes:
 
-```python
-from oddsapi import OddsAPIClient, Region, Market, OddsFormat
+- Bankroll performance  
+- Profit/loss curves  
+- Win/loss statistics  
 
-# Initialize client
-client = OddsAPIClient(api_key="your-api-key")
+---
 
-# Get available sports
-sports = client.get_sports(active_only=True)
+<a id="features"></a>
+# ⭐ **Project Features**
 
-# Get NFL odds with all markets
-odds = client.get_odds(
-    sport_key="americanfootball_nfl",
-    regions=[Region.US],
-    markets=[Market.H2H, Market.SPREADS, Market.TOTALS],
-    odds_format=OddsFormat.AMERICAN
-)
-```
+### ✔ AI/ML Model Predictions
+- Moneyline probability  
+- Spread cover probability  
+- Ensemble averaging  
 
-### Installation
+### ✔ Agent-Based Decision Making
+- Model probability vs implied probability  
+- Expected value (EV) calculation  
+- Fractional Kelly stake sizing  
+- Final BET/NO BET decision  
 
-The SDK is included in this project and can be used directly:
+### ✔ Paper Trading Simulation
+- Bankroll tracking  
+- Bet placement  
+- Manual bet settlement  
+- Historical results with graphs  
 
-```bash
-# The SDK is located in odds-sdk/ directory
-# Install in development mode if needed
-cd odds-sdk
-pip install -e .
-```
+### ✔ Real-Time Data Integration
+- Odds from The Odds API  
+- Scores + game metadata from ESPN  
+- Full game ID linking logic  
 
-### Documentation
+### ✔ Modern Streamlit Frontend
+- Fully interactive UI  
+- Multi-tab layout  
+- Lightweight and runs locally  
 
-For detailed documentation, API reference, and advanced usage examples, see the [OddsAPI SDK README](odds-sdk/README.md).
+---
 
-The SDK is designed as a reusable component and can be used independently of the main BetAI application.
+<a id="limitations"></a>
+# ⚠️ **Limitations**
 
-## Planned Features
-- [ ] Integration with live odds APIs
-- [ ] Advanced model ensembling strategies
-- [ ] Historical backtesting capabilities
-- [ ] Calibration plots and Brier score analysis
-- [ ] Multi-league support
-- [ ] Real-time model retraining pipeline
+- Bets must be settled manually  
+- No persistent data storage outside session state  
+- No login system or cloud deployment  
+- No in-game ML models (pregame only)  
+- Must run locally  
+- Models retrain only during setup  
 
-## Acknowledgements
-- [Streamlit](https://streamlit.io/) - For the amazing web framework
-- [scikit-learn](https://scikit-learn.org/) - For machine learning tools
-- [Plotly](https://plotly.com/) - For interactive visualizations
+---
+
+<a id="future-work"></a>
+# 🔮 **Future Work**
+
+- Automated bet settlement  
+- Persistent database + user accounts  
+- Cloud deployment  
+- In-game predictive modeling  
+- Reinforcement learning agents  
+- Automated retraining pipeline  
+- Multi-sport expansion  
+
+---
+
+<a id="acknowledgements"></a>
+# 🙏 **Acknowledgements**
+
+- **Streamlit** — UI framework  
+- **scikit-learn** — ML toolkit  
+- **Plotly** — visual analytics  
+- **The Odds API** — sportsbook integration  
+- **ESPN Scoreboard** — game data  
+
+---
+
+# 🎉 **BetAI — AI-Driven Sports Predictions, Done Right.**

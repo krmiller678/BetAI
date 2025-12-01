@@ -139,7 +139,7 @@ def _filter_events_by_date(events: List[Dict[str, Any]] | None, target: date) ->
 # ============================================================
 
 # Configure the Streamlit page title and layout mode
-st.set_page_config(page_title="BetAI — Live Odds", layout="wide")
+st.set_page_config(page_title="BetAI — Live Odds", layout="wide", initial_sidebar_state="collapsed")
 
 
 # ============================================================
@@ -163,11 +163,11 @@ agent = ss.get_agent()
 sidebar_cfg = render_sidebar(agent=agent)
 
 # Unpack the configuration dictionary returned by the sidebar
-sport_key   = sidebar_cfg["sport_key"]          # Sport identifier (e.g., americanfootball_nfl)
-regions     = sidebar_cfg["regions"]            # Region(s) to fetch from (e.g., us, uk)
-markets     = sidebar_cfg["markets"]            # Market types (e.g., h2h, spreads, totals)
-refresh_s   = sidebar_cfg["refresh_s"]          # Auto-refresh interval in seconds (0 disables)
-ev_threshold = sidebar_cfg["ev_threshold"]      # Minimum EV for recommendations to appear
+sport_key   = sidebar_cfg["sport_key"]                              # Sport identifier (e.g., americanfootball_nfl)
+regions     = sidebar_cfg["regions"]                                # Region(s) to fetch from (e.g., us, uk)
+markets     = sidebar_cfg["markets"]                                # Market types (e.g., h2h, spreads, totals)
+refresh_s   = sidebar_cfg["refresh_s"]                              # Auto-refresh interval in seconds (0 disables)
+ev_threshold = sidebar_cfg["ev_threshold"]                          # Minimum EV for recommendations to appear
 
 # Add a Slate Date picker (keeps ESPN and OddsAPI aligned to the same calendar day)
 # - Stored in session_state so other tabs/components can reuse
@@ -190,7 +190,7 @@ col_fetch, col_time, _ = st.columns([1, 1, 3])
 # ------------------------------------------------------------
 with col_fetch:
     # Render a wide fetch button to retrieve fresh odds
-    if st.button("Fetch odds now", use_container_width=True):
+    if st.button("Fetch odds now", width='stretch'):
 
         # Call the API wrapper to fetch and normalize event data
         st.session_state.events = fetch_and_normalize_events(
@@ -284,12 +284,12 @@ with tab_scores:
 
     # Call the router with (games, agent, ev_threshold, skey)
     selected_eid = render_scoreboard(
-        games=games,               # ESPN normalized games (for this date)
-        agent=agent,               # BettingAgent instance used by Details view
-        ev_threshold=ev_threshold, # Same threshold you set in the sidebar
-        skey=skey,                 # Your widget key helper
-        show_details_header=True,  # (optional) show big logos in details
-        header_logo_size=96,       # (optional) size of those logos
+        games=games,                                            # ESPN normalized games (for this date)
+        agent=agent,                                            # BettingAgent instance used by Details view
+        ev_threshold=ev_threshold,                              # Same threshold you set in the sidebar
+        skey=skey,                                              # Your widget key helper
+        show_details_header=True,                               # (optional) show big logos in details
+        header_logo_size=96,                                    # (optional) size of those logos
     )
 
 # ------------------------------------------------------------

@@ -122,7 +122,7 @@ def render_paper_trading(
         # --------------------------------------------------------
         for idx, row in view.reset_index(drop=True).iterrows():
             # Build a row of columns to show offer details and actions
-            c0, c1, c2, c3 = st.columns([3, 1, 1, 2])
+            c0, c1, c2 = st.columns([3, 1, 1])
 
             # Column 0: readable summary (book, market, side, odds)
             c0.markdown(
@@ -131,12 +131,15 @@ def render_paper_trading(
             )
 
             # Column 3: collapsible context payload for transparency
-            with c3.expander("Context", expanded=False):
-                st.json(row.get("context", {}))
+            # with c3.expander("Context", expanded=False):
+            #     st.json(row.get("context", {}))
 
             # Unique keys for buttons using game/market/book/row index
             eval_key  = skey("pt_eval",  row["game_id"], row["market"], row["bookmaker"], idx)
             place_key = skey("pt_place", row["game_id"], row["market"], row["bookmaker"], idx)
+
+            base_ctx = row.get("context", {}) or {}
+            ctx = {**base_ctx, "home_team": row.get("home"), "away_team": row.get("away")}
 
             # Column 1: Evaluate — ask agent for decision with current EV threshold
             if c1.button("Evaluate", key=eval_key):
@@ -144,7 +147,7 @@ def render_paper_trading(
                 rec = agent.make_recommendation(
                     market=row["market"],
                     side=row["side"],
-                    context=row.get("context", {}),
+                    context=ctx,
                     odds_value=float(row["decimal_odds"]),
                     odds_type="decimal",
                     ev_threshold=ev_threshold,
@@ -160,7 +163,7 @@ def render_paper_trading(
                 rec = agent.make_recommendation(
                     market=row["market"],
                     side=row["side"],
-                    context=row.get("context", {}),
+                    context=ctx,
                     odds_value=float(row["decimal_odds"]),
                     odds_type="decimal",
                     ev_threshold=ev_threshold,
@@ -253,7 +256,7 @@ def render_paper_trading(
             cols = [c for c in ["date", "side", "market", "decimal_odds", "stake", "result", "pnl"] if c in hdf.columns]
             if cols:
                 st.caption("Recent settles")
-                st.dataframe(hdf[cols].sort_values(cols[0], ascending=False).head(5), use_container_width=True)
+                st.dataframe(hdf[cols].sort_values(cols[0], ascending=False).head(5), width='stretch')
 
 
 # ============================================================
