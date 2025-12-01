@@ -128,7 +128,7 @@ def render_live_board(
         # ---- Offers in a single dropdown (organized by market) ----
         with st.expander("Show offers", expanded=False):
             # Small caption with the game id (if you want to keep it around)
-            st.caption(f"Game ID: {game_id}")
+            #st.caption(f"Game ID: {game_id}")
 
             grouped = _group_offers_by_market(ev.get("offers", []))
 

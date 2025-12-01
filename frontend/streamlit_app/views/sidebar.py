@@ -108,7 +108,7 @@ def render_sidebar(*, agent: Any) -> Dict[str, Any]:
         label="Max stake %",
         min_value=0.0,
         max_value=1.0,
-        value=float(getattr(agent, "max_stake_pct", 0.05)),
+        value=float(getattr(agent, "max_stake_pct", 0.40)),
         step=0.01,
         help="Upper bound on stake size as a fraction of bankroll (risk cap).",
     )
